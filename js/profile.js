@@ -2,17 +2,21 @@
 // The profile lives in the browser's localStorage and can be exported to a
 // JSON backup file. Nothing here ever writes to the catalog.
 //
-// Version 3 data model. Each show you have recorded gets one entry:
+// Version 4 data model. Each show you have recorded gets one entry:
 //   shows: { "cheers-1982": { status: "seen", rating: "yes" },
 //            "taxi-1978":   { status: "seen" },             // seen, no rating
 //            "soap-1977":   { status: "not_seen" } }
 //   survey: { "animation": "more", "camera": "neutral" }    // optional answers
+//   adjustments: { "humor:cringe": "less", "audience:adult": "ignore" }
 // A show with no entry has status "unknown". A rating always means "seen".
-// Versions 1 (ratings only) and 2 (no survey) are still read and converted.
+// Adjustments are your corrections to the recommender ("more", "less", "ignore");
+// they never change the catalog's tags.
+// Versions 1 (ratings only), 2 (no survey), and 3 (no adjustments) are still read.
 
 const PROFILE_FORMAT = "sitcom-tracker-profile";
-const PROFILE_VERSION = 3;
-const SUPPORTED_VERSIONS = [1, 2, 3];
+const PROFILE_VERSION = 4;
+const SUPPORTED_VERSIONS = [1, 2, 3, 4];
+const ADJUSTMENTS = ["more", "less", "ignore"];
 
 // The survey questions come from survey.js (a <script> in the browser, require in Node).
 const SURVEY = typeof SURVEY_QUESTIONS !== "undefined" ? { SURVEY_QUESTIONS, surveyOption } : require("./survey.js");
@@ -32,7 +36,7 @@ const RATINGS = {
 };
 
 function emptyProfile() {
-  return { format: PROFILE_FORMAT, version: PROFILE_VERSION, shows: {}, survey: {} };
+  return { format: PROFILE_FORMAT, version: PROFILE_VERSION, shows: {}, survey: {}, adjustments: {} };
 }
 
 function getStatus(profile, id) {
@@ -73,6 +77,14 @@ function readEntries(data) {
   if (!isPlainObject(data.shows)) return "The backup has no \"shows\" object.";
   return Object.entries(data.shows).map(([id, entry]) =>
     isPlainObject(entry) ? [id, entry.status, entry.rating ?? null] : [id, undefined, null]);
+}
+
+// Is "category:value" a feature the recommender can use with this catalog?
+function isKnownFeature(feature, catalog) {
+  if (typeof feature !== "string") return false;
+  const [category, value] = feature.split(":");
+  if (category === "kind" || category === "medium") return catalog.shows.some((show) => show[category] === value);
+  return Boolean(catalog.vocabulary[category]?.[value]);
 }
 
 function isPlainObject(value) {
@@ -132,8 +144,20 @@ function validateProfileData(data, catalog) {
     }
   }
 
+  // Adjustments exist from version 4. Unknown features or values are skipped.
+  let skippedAdjustments = 0;
+  if (data.version >= 4 && data.adjustments !== undefined) {
+    if (!isPlainObject(data.adjustments)) return { ok: false, errors: ["The backup's \"adjustments\" is not an object."], warnings };
+    for (const [feature, value] of Object.entries(data.adjustments)) {
+      if (isKnownFeature(feature, catalog) && ADJUSTMENTS.includes(value)) profile.adjustments[feature] = value;
+      else skippedAdjustments++;
+    }
+  }
+
   if (data.version === 1) warnings.push("This is a version 1 backup (ratings only). Each rated show will be recorded as Seen with its rating.");
   if (data.version === 2) warnings.push("This is a version 2 backup, from before the taste survey. It has no survey answers.");
+  if (data.version === 3) warnings.push("This is a version 3 backup, from before recommendation adjustments. It has none.");
+  if (skippedAdjustments > 0) warnings.push(`${skippedAdjustments} recommendation adjustment(s) didn't match this catalog's features and will be skipped.`);
   if (skippedAnswers > 0) warnings.push(`${skippedAnswers} survey answer(s) didn't match the current questions and will be skipped.`);
   if (renamed > 0) warnings.push(`${renamed} former show ID(s) were translated to current IDs.`);
   if (unknownIds.length > 0) warnings.push(`${unknownIds.length} show ID(s) are not in this catalog and will be skipped: ${listSome(unknownIds)}`);
@@ -146,12 +170,13 @@ function listSome(items) {
   return items.slice(0, 5).join(", ") + (items.length > 5 ? ", …" : "");
 }
 
-// Combine two profiles. Where both have an entry for a show or an answer to a
-// survey question, `incoming` wins.
+// Combine two profiles. Where both have an entry for a show, an answer to a
+// survey question, or an adjustment for a feature, `incoming` wins.
 function mergeProfiles(current, incoming) {
   const merged = emptyProfile();
   Object.assign(merged.shows, structuredClone(current.shows), structuredClone(incoming.shows));
   Object.assign(merged.survey, current.survey, incoming.survey);
+  Object.assign(merged.adjustments, current.adjustments, incoming.adjustments);
   return merged;
 }
 
@@ -227,13 +252,14 @@ function makeBackup(profile, catalog) {
     catalog_version: catalog.meta.version,
     shows: structuredClone(profile.shows),
     survey: { ...profile.survey },
+    adjustments: { ...profile.adjustments },
   };
 }
 
 // Let Node.js test scripts use these functions too (ignored by browsers).
 if (typeof module !== "undefined") {
   module.exports = {
-    PROFILE_VERSION, STATUSES, RATINGS, emptyProfile, getStatus, getRating, setEntry,
+    PROFILE_VERSION, STATUSES, RATINGS, ADJUSTMENTS, emptyProfile, isKnownFeature, getStatus, getRating, setEntry,
     resolveShowId, validateProfileData, mergeProfiles, countEntries, makeBackup,
   };
 }

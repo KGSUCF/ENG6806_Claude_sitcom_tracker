@@ -3,7 +3,6 @@
 //   node tests/compare-with-baseline.js
 // Changes in the list are only differences, not proof of improvement.
 
-const R = require("../js/recommend.js");
 const S = require("../js/survey.js");
 const { examples, results, baseline, shareWith } = require("./recommend-tests.js");
 
@@ -16,7 +15,9 @@ function surveyFeatures(answers) {
   return features;
 }
 
-console.log(`Comparing ${R.SCORING_VERSION} with baseline-1 (same profiles; baseline ignores survey answers)`);
+// The example profiles have no adjustments, so the current method gives the
+// survey-1 results here.
+console.log("Comparing survey-1 with baseline-1 (same profiles; baseline ignores survey answers)");
 for (const ex of examples) {
   const before = baseline[ex.name].picks;
   const after = results[ex.name].picks;

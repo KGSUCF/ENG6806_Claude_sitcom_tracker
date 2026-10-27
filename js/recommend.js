@@ -7,10 +7,12 @@
 // 2. Your ratings teach a "lean" for each feature: shows you liked push the
 //    feature up, shows you didn't like push it down, Meh nudges it down a little.
 //    Taste-survey answers add a smaller nudge to the features they name.
+//    Your adjustments ("More of this", "Less of this", "Ignore this feature")
+//    are applied last.
 // 3. A candidate's score is the average lean of its features.
 // Awards and reputation decide which shows are eligible, never the score.
 
-const SCORING_VERSION = "survey-1";
+const SCORING_VERSION = "adjust-1";
 
 // The survey questions come from survey.js (a <script> in the browser, require in Node).
 const SURVEY_DEFS = typeof SURVEY_QUESTIONS !== "undefined" ? { surveyOption, countSurveyPreferences } : require("./survey.js");
@@ -30,6 +32,16 @@ const SURVEY_STRENGTH = 0.2;
 const MIN_RATED = 3;
 const MIN_LIKED = 1;
 const MIN_SURVEY_PREFERENCES = 3; // non-neutral answers that can stand in for ratings
+
+// "More of this" makes a feature count for a show by at least this much,
+// and "Less of this" makes it count against a show by at least this much.
+const ADJUST_STRENGTH = 1;
+
+// Patterns ("What your ratings suggest") need a feature in at least this many
+// rated shows; at most PATTERN_LIMIT are shown.
+const PATTERN_MIN_EXAMPLES = 2;
+const PATTERN_LIMIT = 8;
+const PATTERN_MIXED_LIMIT = 3; // up to this many of the eight are mixed patterns
 const FEW_RATINGS = 10; // below this, results are labeled as rough
 
 const PICK_LIMIT = 10;
@@ -80,8 +92,9 @@ function describeFeature(feature, catalog) {
 // Learn a lean for every feature that appears in a rated show or a survey answer.
 // Returns a Map: feature -> { lean, ratingLean, surveyLean, examples: [{ id, rating }],
 //                             answers: [{ questionId, label, direction }] }
-// With useSurvey false, survey answers are ignored (the baseline-1 method).
-function learnPreferences(profile, catalog, useSurvey = true) {
+// With useSurvey false, survey answers are ignored (the baseline-1 method);
+// with useAdjustments false, your adjustments are ignored (the survey-1 method).
+function learnPreferences(profile, catalog, useSurvey = true, useAdjustments = useSurvey) {
   const totals = new Map();
   for (const [id, entry] of Object.entries(profile.shows)) {
     if (!entry.rating) continue;
@@ -99,28 +112,49 @@ function learnPreferences(profile, catalog, useSurvey = true) {
     const ratingLean = sum / (examples.length + SHRINKAGE);
     prefs.set(feature, { lean: ratingLean, ratingLean, surveyLean: 0, examples, answers: [] });
   }
-  if (!useSurvey) return prefs;
+  const ensure = (feature) => {
+    if (!prefs.has(feature)) prefs.set(feature, { lean: 0, ratingLean: 0, surveyLean: 0, examples: [], answers: [] });
+    return prefs.get(feature);
+  };
 
-  for (const [questionId, value] of Object.entries(profile.survey ?? {})) {
-    const option = SURVEY_DEFS.surveyOption(questionId, value);
-    if (!option) continue;
-    for (const [feature, direction] of Object.entries(option.effects)) {
-      if (!prefs.has(feature)) prefs.set(feature, { lean: 0, ratingLean: 0, surveyLean: 0, examples: [], answers: [] });
-      const pref = prefs.get(feature);
-      pref.surveyLean += direction * SURVEY_STRENGTH;
-      pref.lean = pref.ratingLean + pref.surveyLean;
-      pref.answers.push({ questionId, label: option.label, direction });
+  if (useSurvey) {
+    for (const [questionId, value] of Object.entries(profile.survey ?? {})) {
+      const option = SURVEY_DEFS.surveyOption(questionId, value);
+      if (!option) continue;
+      for (const [feature, direction] of Object.entries(option.effects)) {
+        const pref = ensure(feature);
+        pref.surveyLean += direction * SURVEY_STRENGTH;
+        pref.lean = pref.ratingLean + pref.surveyLean;
+        pref.answers.push({ questionId, label: option.label, direction });
+      }
+    }
+  }
+
+  if (useAdjustments) {
+    for (const [feature, adjustment] of Object.entries(profile.adjustments ?? {})) {
+      const pref = ensure(feature);
+      pref.adjustment = adjustment;
+      pref.unadjustedLean = pref.lean;
+      if (adjustment === "ignore") {
+        pref.ignored = true;
+        pref.lean = 0;
+      } else if (adjustment === "more") {
+        pref.lean = Math.max(pref.lean, 0) + ADJUST_STRENGTH;
+      } else if (adjustment === "less") {
+        pref.lean = Math.min(pref.lean, 0) - ADJUST_STRENGTH;
+      }
     }
   }
   return prefs;
 }
 
 // Score one show: the average lean of its features (unknown features count as 0).
+// Ignored features are left out completely, as if the show didn't have them.
 function scoreShow(show, prefs) {
-  const features = showFeatures(show);
+  const features = showFeatures(show).filter((feature) => !prefs.get(feature)?.ignored);
   const contributions = features.map((feature) => ({ feature, lean: prefs.get(feature)?.lean ?? 0 }));
   const total = contributions.reduce((sum, c) => sum + c.lean, 0);
-  return { score: total / features.length, featureCount: features.length, contributions };
+  return { score: features.length ? total / features.length : 0, featureCount: features.length, contributions };
 }
 
 // Higher score first; ties broken by title, then ID, so results never shuffle.
@@ -150,10 +184,12 @@ function summarizeEvidence(profile, useSurvey = true) {
 // options.includeUnknown: also consider shows whose status is Unknown.
 // options.includeReviewCandidates: widen the pool beyond the catalog's default.
 // options.useSurvey: false reproduces the baseline-1 results (ratings only).
+// options.useAdjustments: false reproduces the survey-1 results.
 function recommend(catalog, profile, options = {}) {
   const useSurvey = options.useSurvey ?? true;
+  const useAdjustments = useSurvey && (options.useAdjustments ?? true);
   const evidence = summarizeEvidence(profile, useSurvey);
-  const prefs = learnPreferences(profile, catalog, useSurvey);
+  const prefs = learnPreferences(profile, catalog, useSurvey, useAdjustments);
 
   const poolIds = new Set(catalog.views.documented_selection.show_ids);
   if (options.includeReviewCandidates) {
@@ -189,7 +225,8 @@ function recommend(catalog, profile, options = {}) {
   const discovery = (evidence.enough ? unknownShows : unknownShows.sort((a, b) => catalog.shows.indexOf(a.show) - catalog.shows.indexOf(b.show)))
     .slice(0, DISCOVERY_LIMIT);
 
-  return { version: useSurvey ? SCORING_VERSION : "baseline-1", evidence, prefs, counts, picks, discovery, eligibleNotSeen: scored.filter((s) => s.status === "not_seen" && s.score > 0).length };
+  const version = !useSurvey ? "baseline-1" : !useAdjustments ? "survey-1" : SCORING_VERSION;
+  return { version, evidence, prefs, counts, picks, discovery, eligibleNotSeen: scored.filter((s) => s.status === "not_seen" && s.score > 0).length };
 }
 
 // Reasons that come straight from the score: the features adding the most,
@@ -201,10 +238,43 @@ function explain(scoredShow, prefs, catalog) {
     lean: c.lean,
     examples: prefs.get(c.feature).examples,
     answers: prefs.get(c.feature).answers,
+    adjustment: prefs.get(c.feature).adjustment ?? null,
   });
   const positives = withEvidence.filter((c) => c.lean > 0).sort((a, b) => b.lean - a.lean || a.feature.localeCompare(b.feature)).slice(0, 3).map(describe);
   const negatives = withEvidence.filter((c) => c.lean < 0).sort((a, b) => a.lean - b.lean || a.feature.localeCompare(b.feature)).slice(0, 2).map(describe);
   return { positives, negatives, unmatched: scoredShow.featureCount - withEvidence.length };
+}
+
+// Tentative taste patterns from your ratings alone (not survey answers or
+// adjustments), for "What your ratings suggest". Each pattern lists the ratings
+// that support it and the ones that conflict with it.
+function suggestPatterns(profile, catalog) {
+  const prefs = learnPreferences(profile, catalog, false, false);
+  const patterns = [];
+  for (const [feature, pref] of prefs) {
+    if (pref.examples.length < PATTERN_MIN_EXAMPLES || pref.ratingLean === 0) continue;
+    const positive = pref.ratingLean > 0;
+    const supports = (e) => (positive ? e.rating === "yes" : e.rating !== "yes");
+    const supporting = pref.examples.filter(supports);
+    const conflicting = pref.examples.filter((e) => !supports(e));
+    patterns.push({ feature, ...describeFeature(feature, catalog), lean: pref.ratingLean, positive, supporting, conflicting, confidence: confidenceOf(supporting.length, conflicting.length) });
+  }
+  // Conflicting ratings pull a lean toward zero, so mixed patterns would never
+  // rank as "strongest". Show the clearest ones and, separately, the mixed ones
+  // backed by the most ratings. Ties are broken by name so the list is stable.
+  const byStrength = (a, b) => Math.abs(b.lean) - Math.abs(a.lean) || a.feature.localeCompare(b.feature);
+  const byEvidence = (a, b) => b.supporting.length + b.conflicting.length - (a.supporting.length + a.conflicting.length) || byStrength(a, b);
+  const clear = patterns.filter((p) => p.confidence !== "mixed").sort(byStrength);
+  const mixed = patterns.filter((p) => p.confidence === "mixed").sort(byEvidence).slice(0, PATTERN_MIXED_LIMIT);
+  return [...clear.slice(0, PATTERN_LIMIT - mixed.length), ...mixed];
+}
+
+// How firmly to word a pattern, from the amount and agreement of the evidence.
+function confidenceOf(supportingCount, conflictingCount) {
+  if (conflictingCount > 0 && conflictingCount * 2 >= supportingCount) return "mixed";
+  if (supportingCount >= 5 && conflictingCount === 0) return "consistent";
+  if (supportingCount >= 3) return "some";
+  return "slight";
 }
 
 function eligibilityReason(show) {
@@ -217,7 +287,8 @@ function eligibilityReason(show) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    SCORING_VERSION, RATING_WEIGHTS, SHRINKAGE, SURVEY_STRENGTH, MIN_RATED, MIN_LIKED, MIN_SURVEY_PREFERENCES, PICK_LIMIT, DISCOVERY_LIMIT,
-    showFeatures, describeFeature, learnPreferences, scoreShow, recommend, explain, eligibilityReason,
+    SCORING_VERSION, RATING_WEIGHTS, SHRINKAGE, SURVEY_STRENGTH, ADJUST_STRENGTH, MIN_RATED, MIN_LIKED, MIN_SURVEY_PREFERENCES,
+    PICK_LIMIT, DISCOVERY_LIMIT, PATTERN_MIN_EXAMPLES, PATTERN_LIMIT,
+    showFeatures, describeFeature, learnPreferences, scoreShow, recommend, explain, eligibilityReason, suggestPatterns, confidenceOf,
   };
 }

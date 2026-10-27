@@ -8,7 +8,7 @@ A personal sitcom discovery tool, built as a static web page for GitHub Pages
 - answer a short taste survey; and
 - get recommendations for shows you might enjoy.
 
-**Status:** Stage 5 complete: viewing history, optional ratings, a short taste survey, and transparent recommendations.
+**Status:** Stage 6 complete: viewing history, optional ratings, a short taste survey, transparent recommendations, and controls to inspect and correct the recommender's assumptions.
 
 ## Ground rules
 
@@ -137,7 +137,7 @@ Later features are not started early.
    quick checklist mode and undo. *(done)*
 4. **Recommendations**: transparent, deterministic scoring with explanations. *(done)*
 5. **Taste survey**: about eight optional questions that adjust recommendations. *(done)*
-6. **Inspect assumptions**: "What your ratings suggest", with More/Less/Ignore controls.
+6. **Inspect assumptions**: "What your ratings suggest", with More/Less/Ignore controls. *(done)*
 7. **Revision through a branch and pull request**, based on real use of the page.
 
 ## Using the tracker
@@ -195,6 +195,15 @@ under you: press **Refresh recommendations** to re-rank. The **Discovery list** 
 Yes), the page explains that there isn't enough evidence yet instead of guessing.
 See [SCORING.md](SCORING.md) for the exact method.
 
+### What your ratings suggest
+
+Inside the Recommendations view, this section lists up to eight tentative patterns from
+your ratings, such as "You seem to enjoy shows with Theme: dating", each with the ratings
+that support it and any that conflict. Shared features are clues, not proof of why you liked
+a show. For each feature you can choose **As learned**, **More of this**, **Less of this**,
+or **Ignore this feature**. The picks update immediately and the page lists which shows
+were added or dropped. **Clear all adjustments** resets only these choices.
+
 ### Search, filters, saving
 
 - **Search** matches show titles and recorded alternate titles.
@@ -214,12 +223,12 @@ See [SCORING.md](SCORING.md) for the exact method.
 
 ### Backup format
 
-Version 3 (current):
+Version 4 (current):
 
 ```json
 {
   "format": "sitcom-tracker-profile",
-  "version": 3,
+  "version": 4,
   "exported_at": "2026-10-27T12:00:00.000Z",
   "catalog_version": "3.0.0",
   "shows": {
@@ -227,19 +236,21 @@ Version 3 (current):
     "taxi-1978":   { "status": "seen" },
     "soap-1977":   { "status": "not_seen" }
   },
-  "survey": { "animation": "more", "camera": "neutral" }
+  "survey": { "animation": "more", "camera": "neutral" },
+  "adjustments": { "humor:cringe": "less", "audience:adult": "ignore" }
 }
 ```
 
 A show with no entry is Unknown; an unanswered question has no `survey` entry.
 Older backups still import:
+- Version 3 (no `adjustments`): imports with no adjustments.
 - Version 2 (no `survey`): shows import as they are, with no survey answers.
 - Version 1 (`"ratings": { "cheers-1982": "yes" }`): each rated show becomes Seen with
   that rating.
 
 Data saved in the browser by an older version is upgraded automatically the first time
 the page loads, and the original is kept under the storage key
-`sitcomTracker.profile.v1-backup` or `sitcomTracker.profile.v2-backup`.
+`sitcomTracker.profile.v1-backup`, `…v2-backup`, or `…v3-backup`.
 
 ## Previewing locally
 
@@ -261,6 +272,7 @@ To run the development checks (requires [Node.js](https://nodejs.org/)):
 node tests/profile-tests.js
 node tests/recommend-tests.js
 node tests/compare-with-baseline.js
+node tests/adjustment-tests.js
 ```
 
 ## How development works

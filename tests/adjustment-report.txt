@@ -1,0 +1,57 @@
+== contradictory: Likes some multi-camera workplace and friends sitcoms but dislikes very similar ones.
+   [some] likes Theme: dating  lean 0.600
+       supporting: Cheers (yes), Seinfeld (yes), Frasier (yes)
+       conflicting: none
+   [slight] likes Humor: cringe  lean 0.500
+       supporting: Seinfeld (yes), The Office (US) (yes)
+       conflicting: none
+   [slight] likes Humor: sarcasm  lean 0.500
+       supporting: Cheers (yes), Frasier (yes)
+       conflicting: none
+   [slight] likes Setting: bar restaurant  lean 0.500
+       supporting: Cheers (yes), Seinfeld (yes)
+       conflicting: none
+   [slight] likes Setting: big city  lean 0.500
+       supporting: Cheers (yes), Frasier (yes)
+       conflicting: none
+   [mixed] likes Cast: ensemble  lean 0.111
+       supporting: Cheers (yes), Seinfeld (yes), Frasier (yes), The Office (US) (yes)
+       conflicting: Night Court (no), Wings (no), Parks and Recreation (no)
+   [mixed] dislikes Tone: warm  lean -0.111
+       supporting: Night Court (no), Wings (no), Mad About You (no), Parks and Recreation (no)
+       conflicting: Cheers (yes), Frasier (yes), The Office (US) (yes)
+   [mixed] dislikes Humor: witty banter  lean -0.143
+       supporting: Wings (no), Mad About You (no), Parks and Recreation (no)
+       conflicting: Cheers (yes), Frasier (yes)
+
+== few-ratings: Only two ratings.
+   [slight] likes Audience: adult  lean 0.500
+       supporting: Taxi (yes), Cheers (yes)
+       conflicting: none
+   [slight] likes Cast: ensemble  lean 0.500
+       supporting: Taxi (yes), Cheers (yes)
+       conflicting: none
+   [slight] likes Format: multi cam  lean 0.500
+       supporting: Taxi (yes), Cheers (yes)
+       conflicting: none
+   [slight] likes Humor: character driven  lean 0.500
+       supporting: Taxi (yes), Cheers (yes)
+       conflicting: none
+   [slight] likes Kind: sitcom  lean 0.500
+       supporting: Taxi (yes), Cheers (yes)
+       conflicting: none
+   [slight] likes Medium: live action  lean 0.500
+       supporting: Taxi (yes), Cheers (yes)
+       conflicting: none
+   [slight] likes Setting: workplace  lean 0.500
+       supporting: Taxi (yes), Cheers (yes)
+       conflicting: none
+   [slight] likes Theme: coworkers  lean 0.500
+       supporting: Taxi (yes), Cheers (yes)
+       conflicting: none
+
+== cringe-satire, ignoring audience:adult and format:single-cam (shared by all its picks)
+   before: Silicon Valley, The Thick of It, The Studio, The Office (US), The Larry Sanders Show, Extras, Parks and Recreation, Barry, Widow's Bay, Superstore
+   after:  Silicon Valley, The Thick of It, The Studio, The Office (US), The Larry Sanders Show, Extras, Parks and Recreation, Archer, Widow's Bay, Hacks
+   top reasons before: Format: single cam, Humor: cringe, Audience: adult
+   top reasons after:  Humor: cringe, Setting: workplace, Theme: coworkers

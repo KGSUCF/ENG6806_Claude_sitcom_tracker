@@ -154,6 +154,27 @@
 
       <div id="rec-evidence" class="rec-evidence" aria-live="polite"></div>
 
+      <details id="patterns" class="panel patterns">
+        <summary><h3>What your ratings suggest</h3></summary>
+        <p>
+          These are tentative patterns in the catalog tags of shows you've rated. A shared
+          feature doesn't prove <em>why</em> you liked or disliked a show: you may have loved
+          Cheers for its characters, not because it is set in a bar. Correct anything that looks
+          wrong. Your choices only change your own recommendations; they never change the
+          catalog's descriptions or tags.
+        </p>
+        <ul class="pattern-help">
+          <li><strong>As learned</strong>: use what your ratings and survey suggest (the default).</li>
+          <li><strong>More of this</strong>: this feature always counts for a show, and strongly.</li>
+          <li><strong>Less of this</strong>: this feature always counts against a show, and strongly.</li>
+          <li><strong>Ignore this feature</strong>: scoring acts as if no show had it.</li>
+        </ul>
+        <p id="adjust-effect" class="adjust-effect" aria-live="polite"></p>
+        <ul id="pattern-list" class="pattern-list"></ul>
+        <div id="other-adjustments"></div>
+        <button type="button" id="clear-adjustments" class="button-secondary">Clear all adjustments</button>
+      </details>
+
       <h3 class="rec-heading">Top picks</h3>
       <ol id="rec-picks" class="rec-list"></ol>
 
@@ -171,7 +192,7 @@
     <section class="panel" aria-labelledby="data-heading">
       <h2 id="data-heading">Your data</h2>
       <p>
-        Your viewing history, ratings, and survey answers are saved only in this browser. They are never added to
+        Your viewing history, ratings, survey answers, and recommendation adjustments are saved only in this browser. They are never added to
         <code>catalog.json</code> or to the repository. Export a backup to keep a copy
         or move it to another browser.
       </p>

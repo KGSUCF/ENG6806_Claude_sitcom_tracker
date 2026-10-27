@@ -1,7 +1,8 @@
 # How recommendations are scored
 
-Scoring version: **survey-1** (code: `js/recommend.js`). It is the earlier
-**baseline-1** method plus optional taste-survey answers (section 4).
+Scoring version: **adjust-1** (code: `js/recommend.js`). It is the earlier
+**baseline-1** method, plus optional taste-survey answers (**survey-1**, section 4),
+plus your own More / Less / Ignore adjustments (**adjust-1**, section 5).
 
 The method is deliberately simple so you can check every number yourself.
 It uses only your own ratings, your optional survey answers, and documented catalog tags. It produces a
@@ -85,13 +86,51 @@ Example: you answered "Single-camera" (+0.2) but rated two single-camera shows N
 | Absurd or surreal humor | `humor:absurdist`, `humor:surreal` |
 | Adult content | `content:mature`, `content:suggestive`, `content:crude` |
 
-## 5. Scoring a candidate
+## 5. Your adjustments (added in adjust-1)
+
+"What your ratings suggest" (in the Recommendations view) lets you correct the
+recommender, feature by feature. Adjustments are applied after ratings and survey answers:
+
+| Choice | Effect on the feature's lean |
+|---|---|
+| As learned | none (default) |
+| More of this | `max(lean, 0) + 1`: always counts for a show, and strongly |
+| Less of this | `min(lean, 0) − 1`: always counts against a show, and strongly |
+| Ignore this feature | removed from scoring entirely, as if no show had it; it also stops appearing in explanations |
+
+The strength (1) is larger than any lean learned from ratings, because it is an explicit
+instruction from you. Even so, one feature is one of about 15 in a show's average, so a
+single adjustment typically changes 2–4 of the ten picks; adjusting a feature that most
+of your picks share can change almost all of them. The page reports which picks were
+added and dropped after each change. Adjustments are stored only in your profile; the
+catalog's tags are never changed. "Clear all adjustments" resets them without touching
+ratings, history, or survey answers.
+
+### Tentative patterns
+
+Patterns come from **ratings only** (not survey answers or adjustments). A feature needs
+at least 2 rated shows. Up to 8 are shown: the clearest (largest lean) plus up to 3
+*mixed* ones, chosen by how many ratings they involve. Mixed patterns need their own slot
+because conflicting ratings cancel out and would otherwise never rank as "strongest".
+
+Each pattern lists supporting ratings (likes for a positive lean; Meh and No for a negative
+one) and conflicting ratings. Wording follows the evidence:
+
+| Evidence | Wording |
+|---|---|
+| Conflicting ratings at least half as many as supporting ones | "Mixed signals about …" |
+| 5+ supporting, none conflicting | "You fairly consistently …" |
+| 3–4 supporting | "You seem to …" |
+| 2 supporting | "You might …" |
+
+## 6. Scoring a candidate
 
 ```
 score(show) = sum of lean(feature) over the show's features / number of features
 ```
 
-Features that appear in none of your rated shows count as 0. Dividing by the number
+Features that appear in none of your rated shows or survey answers count as 0.
+Features you chose to ignore are left out of both the sum and the count. Dividing by the number
 of features stops shows with long tag lists from winning just by having more tags.
 
 Ties are broken by title, then ID, so the same data always gives the same order.
@@ -99,27 +138,27 @@ Ties are broken by title, then ID, so the same data always gives the same order.
 Top picks must have a score above 0: a show that only resembles things you
 didn't like is not presented as a recommendation.
 
-## 6. Explanations
+## 7. Explanations
 
 Each pick lists the three features adding the most to its score and up to two
 features taking away from it, each with the rated shows and survey answers behind it.
 "Score details" shows the full sum and every feature's lean (split into its rating and
 survey parts), so the explanation and the score always match.
 
-## 7. Too little evidence
+## 8. Too little evidence
 
 Personal picks need either **3 ratings including at least 1 Yes**, or **3 survey
 answers that express a preference**. Below that, the page says so and suggests rating
 a few shows or taking the survey. Picks that rest on the survey rather than ratings are
 labeled that way. With fewer than 10 ratings, picks are labeled as rough.
 
-## 8. Discovery list
+## 9. Discovery list
 
 Up to 50 eligible shows whose status is still **Unknown**, ranked by the same score
 (or in premiere order when there is too little evidence). Its purpose is to help you
 record shows you've already seen, which improves the picks.
 
-## Known limits of the baseline
+## Known limits
 
 - **Common features dominate.** Features found in many shows (for example
   `audience:adult` or `content:mild`) gather evidence fastest, so they often appear
@@ -130,6 +169,13 @@ record shows you've already seen, which improves the picks.
   episode audits. A missing tag means "not annotated", but here it simply counts as 0.
 - **No sense of quality within a feature.** Two workplace comedies are treated alike
   apart from their other tags.
+- **Patterns from few ratings are weak.** With two liked shows, every feature they share
+  appears as an equally "slight" pattern; the method can't tell which one mattered.
+- **Features are treated independently.** It can't learn "I like cringe humor, but only in
+  workplace shows". Contradictory ratings show up as mixed patterns rather than being
+  explained.
+- **Adjustments are blunt.** More/Less apply the same strength to every feature, and they
+  stay in force until you change them, even if later ratings disagree.
 
 ## Checking it
 
@@ -140,6 +186,17 @@ direction, Meh has less influence, and reputation does not affect scores.
 
 `tests/baseline-results.txt` stores the baseline-1 top 10 for each example profile. A
 test checks that the current code, with survey answers ignored, still reproduces it exactly.
+
+## Checking adjustments
+
+`node tests/adjustment-tests.js` (report saved in `tests/adjustment-report.txt`) adds two
+example viewers: one with **contradictory** tastes (likes Cheers, Frasier, Seinfeld; dislikes
+the similar Night Court, Wings, Mad About You) and one with **only two ratings**. It checks
+that the contradictory profile gets mixed patterns with conflicting ratings listed; that two
+ratings only produce "slight" patterns; that patterns ignore survey answers and adjustments;
+that no adjustments reproduce survey-1 exactly; that Ignore removes a feature from scores and
+explanations; that More and Less move leans and picks in the right direction; that adjusting
+never changes the catalog, history, ratings, or survey; and that adjustments survive a backup.
 
 ## Survey-1 compared with baseline-1
 

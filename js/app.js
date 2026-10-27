@@ -146,15 +146,27 @@ function statusNote(item) {
     : el("p", { className: "rec-status rec-status-unknown" }, "Unknown: you haven't said whether you've seen this, so it may not be new to you.");
 }
 
+const ADJUSTMENT_LABELS = { more: "More of this", less: "Less of this", ignore: "Ignore this feature" };
+
+// The evidence behind a feature, including your own adjustment.
+function reasonText(f) {
+  const parts = [examplesText(f.examples, f.answers)];
+  if (f.adjustment === "more") parts.push("you asked for more of this");
+  if (f.adjustment === "less") parts.push("you asked for less of this");
+  return parts.filter(Boolean).join("; ");
+}
+
 function makePickCard(item) {
   const { show } = item;
   const why = explain(item, state.rec.prefs, state.catalog);
   const reasons = el("ul", { className: "reasons" },
     ...why.positives.map((f) => el("li", { className: "reason-plus", title: f.definition },
-      el("strong", {}, `+ ${f.label}`), ` (${examplesText(f.examples, f.answers)})`)),
+      el("strong", {}, `+ ${f.label}`), ` (${reasonText(f)})`)),
     ...why.negatives.map((f) => el("li", { className: "reason-minus", title: f.definition },
-      el("strong", {}, `− ${f.label}`), ` counts against it (${examplesText(f.examples, f.answers)})`)),
+      el("strong", {}, `− ${f.label}`), ` counts against it (${reasonText(f)})`)),
   );
+  const ignored = showFeatures(show).filter((feature) => state.rec.prefs.get(feature)?.ignored)
+    .map((feature) => describeFeature(feature, state.catalog).label);
   const total = item.contributions.reduce((sum, c) => sum + c.lean, 0);
   const breakdown = el("details", { className: "score-details" },
     el("summary", {}, `Score ${item.score.toFixed(3)}: how it was computed`),
@@ -162,9 +174,12 @@ function makePickCard(item) {
       `${why.unmatched} feature(s) appear in none of your rated shows or survey answers and count as 0.`),
     el("ul", {}, ...[...item.contributions].sort((a, b) => b.lean - a.lean).map((c) => {
       const pref = state.rec.prefs.get(c.feature);
-      const parts = pref?.surveyLean ? ` (ratings ${signed(pref.ratingLean)}, survey ${signed(pref.surveyLean)})` : "";
-      return el("li", {}, `${describeFeature(c.feature, state.catalog).label}: ${signed(c.lean)}${parts}`);
+      const parts = [];
+      if (pref?.surveyLean) parts.push(`ratings ${signed(pref.ratingLean)}, survey ${signed(pref.surveyLean)}`);
+      if (pref?.adjustment) parts.push(`${ADJUSTMENT_LABELS[pref.adjustment]}; before adjusting ${signed(pref.unadjustedLean)}`);
+      return el("li", {}, `${describeFeature(c.feature, state.catalog).label}: ${signed(c.lean)}${parts.length ? ` (${parts.join("; ")})` : ""}`);
     })),
+    ignored.length ? el("p", {}, `Ignored at your request, so not counted: ${ignored.join(", ")}.`) : null,
   );
   return el("li", { className: "rec-card show-card", dataset: { id: show.id, kind: "pick" } },
     el("h4", { className: "show-title" }, show.title, el("span", { className: "years" }, ` ${formatYears(show)}`)),
@@ -243,11 +258,117 @@ function renderRecommendations() {
   $("#rec-evidence").replaceChildren(...messages);
   $("#rec-evidence").hidden = messages.length === 0;
 
+  renderPatterns();
   $("#rec-picks").replaceChildren(...rec.picks.map(makePickCard));
   $("#rec-discovery").replaceChildren(...rec.discovery.map(makeDiscoveryRow));
   $("#discovery").querySelector("summary h3").textContent =
     `Discovery list: ${rec.discovery.length} show(s) to sort into Seen or Not seen${evidence.enough ? "" : " (not personalized yet, in premiere order)"}`;
   if (!evidence.enough || rec.picks.length < PICK_LIMIT) $("#discovery").open = true;
+}
+
+// --- What your ratings suggest -----------------------------------------------
+
+function patternClaim(p) {
+  const name = el("strong", {}, p.label);
+  if (p.confidence === "mixed") return ["Mixed signals about ", name, ": your ratings point both ways."];
+  const enjoy = { slight: "You might enjoy", some: "You seem to enjoy", consistent: "You fairly consistently enjoy" };
+  const lower = { slight: "You might be less keen on", some: "You seem to rate lower", consistent: "You fairly consistently rate lower" };
+  return [p.positive ? enjoy[p.confidence] : lower[p.confidence], " shows with ", name, "."];
+}
+
+function adjustmentButtons(feature, label) {
+  const current = state.profile.adjustments[feature] ?? "learned";
+  const choices = { learned: "As learned", ...ADJUSTMENT_LABELS };
+  return el("div", { className: "choice-group adjust-group", role: "group", ariaLabel: `How to use ${label} in recommendations` },
+    ...Object.entries(choices).map(([value, text]) => el("button", {
+      type: "button",
+      className: `choice adjust-${value}`,
+      dataset: { adjustFeature: feature, adjustValue: value },
+      ariaPressed: String(current === value),
+    }, el("span", { className: "choice-label" }, text))));
+}
+
+function scoringNow(feature) {
+  const pref = state.rec.prefs.get(feature);
+  if (!pref) return "Not used in scoring yet.";
+  if (pref.ignored) return "Ignored in scoring at your request.";
+  const before = pref.adjustment ? ` (before your adjustment: ${signed(pref.unadjustedLean)})` : "";
+  return `Lean used in scoring now: ${signed(pref.lean)}${before}.`;
+}
+
+function renderPatterns() {
+  const patterns = suggestPatterns(state.profile, state.catalog);
+  const shown = new Set(patterns.map((p) => p.feature));
+  const items = patterns.map((p) => {
+    const rated = p.supporting.length + p.conflicting.length;
+    return el("li", { className: `pattern pattern-${p.confidence}` },
+      el("p", { className: "pattern-claim" }, ...patternClaim(p)),
+      p.definition ? el("p", { className: "pattern-definition" }, `Catalog definition: ${p.definition}`) : null,
+      el("p", {}, `Based on ${rated} rated show${rated === 1 ? "" : "s"} with this feature.`),
+      el("p", {}, el("strong", {}, "Supporting: "), examplesText(p.supporting) || "none"),
+      el("p", {}, el("strong", {}, "Conflicting: "), p.conflicting.length ? examplesText(p.conflicting) : "none so far"),
+      adjustmentButtons(p.feature, p.label),
+      el("p", { className: "pattern-effect" }, scoringNow(p.feature)),
+    );
+  });
+  $("#pattern-list").replaceChildren(...items);
+  if (items.length === 0) {
+    $("#pattern-list").append(el("li", { className: "pattern" }, "No patterns yet: a feature needs at least two rated shows before it appears here. Rate a few more shows you remember well."));
+  }
+
+  // Adjustments for features not in the list above, so they can still be changed or removed.
+  const others = Object.keys(state.profile.adjustments).filter((f) => !shown.has(f)).sort();
+  $("#other-adjustments").replaceChildren(...(others.length === 0 ? [] : [
+    el("h4", {}, "Your other adjustments"),
+    el("ul", { className: "pattern-list" }, ...others.map((feature) => {
+      const { label } = describeFeature(feature, state.catalog);
+      return el("li", { className: "pattern" },
+        el("p", { className: "pattern-claim" }, el("strong", {}, label)),
+        adjustmentButtons(feature, label),
+        el("p", { className: "pattern-effect" }, scoringNow(feature)));
+    })),
+  ]));
+  $("#clear-adjustments").disabled = Object.keys(state.profile.adjustments).length === 0;
+}
+
+// Change one adjustment, re-score, and say what changed in the top picks.
+function setAdjustment(feature, value) {
+  const before = state.rec.picks.map((p) => p.show);
+  if (value === "learned") delete state.profile.adjustments[feature];
+  else state.profile.adjustments[feature] = value;
+  persist();
+  computeRecommendations();
+  renderRecommendations();
+
+  const { label } = describeFeature(feature, state.catalog);
+  const action = value === "learned" ? `${label} back to As learned` : `${ADJUSTMENT_LABELS[value]}: ${label}`;
+  $("#adjust-effect").textContent = `${action}. ${describePickChanges(before, state.rec.picks.map((p) => p.show))}`;
+  document.querySelector(`[data-adjust-feature="${CSS.escape(feature)}"][data-adjust-value="${value}"]`)?.focus();
+}
+
+function describePickChanges(before, after) {
+  const beforeIds = new Set(before.map((s) => s.id));
+  const afterIds = new Set(after.map((s) => s.id));
+  const added = after.filter((s) => !beforeIds.has(s.id)).map((s) => s.title);
+  const dropped = before.filter((s) => !afterIds.has(s.id)).map((s) => s.title);
+  if (added.length === 0 && dropped.length === 0) return "Top picks: same shows (scores and order may have changed).";
+  return `Top picks: ${added.length} new (${added.join(", ") || "none"}); ${dropped.length} dropped (${dropped.join(", ") || "none"}).`;
+}
+
+async function clearAdjustments() {
+  const ok = await confirmChoice({
+    title: "Clear all adjustments?",
+    text: "Every feature goes back to As learned. Your viewing history, ratings, and survey answers stay exactly as they are.",
+    confirm: "Clear adjustments",
+    cancel: "Keep them",
+  });
+  if (!ok) return;
+  const before = state.rec.picks.map((p) => p.show);
+  state.profile.adjustments = {};
+  persist();
+  computeRecommendations();
+  renderRecommendations();
+  $("#adjust-effect").textContent = `All adjustments cleared. ${describePickChanges(before, state.rec.picks.map((p) => p.show))}`;
 }
 
 // --- Taste survey -------------------------------------------------------------
@@ -559,12 +680,12 @@ async function handleImportFile(file) {
 
   preview.replaceChildren(
     el("p", {}, el("strong", {}, `"${file.name}" looks good: ${incoming.seen} Seen (${incoming.rated} rated), ${incoming.not_seen} Not seen, ` +
-      `${Object.keys(result.profile.survey).length} survey answer(s).`)),
+      `${Object.keys(result.profile.survey).length} survey answer(s), ${Object.keys(result.profile.adjustments).length} adjustment(s).`)),
     el("ul", { hidden: result.warnings.length === 0 }, ...result.warnings.map((w) => el("li", {}, w))),
     el("p", {}, "Choose how to use it. Nothing changes until you pick one:"),
     el("ul", {},
-      el("li", {}, el("strong", {}, "Replace: "), `your current ${currentTotal} recorded show(s) and your survey answers are removed, and the ${incomingTotal} show(s) and survey answers from the file are used instead.`),
-      el("li", {}, el("strong", {}, "Merge: "), `shows and survey answers from the file are added to yours. Where both record the same show differently (${conflicts} show(s)), or answer the same question, the file wins. Everything else of yours stays.`),
+      el("li", {}, el("strong", {}, "Replace: "), `your current ${currentTotal} recorded show(s), survey answers, and adjustments are removed, and the ${incomingTotal} show(s), survey answers, and adjustments from the file are used instead.`),
+      el("li", {}, el("strong", {}, "Merge: "), `shows, survey answers, and adjustments from the file are added to yours. Where both record the same show differently (${conflicts} show(s)), answer the same question, or adjust the same feature, the file wins. Everything else of yours stays.`),
     ),
     el("div", { className: "data-actions" },
       el("button", { type: "button", dataset: { importMode: "replace" } }, "Replace my data"),
@@ -643,6 +764,11 @@ function wireEvents() {
   });
   $("#survey-form").addEventListener("submit", (event) => event.preventDefault());
   $("#survey-reset").addEventListener("click", resetSurvey);
+  $("#patterns").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-adjust-feature]");
+    if (button) setAdjustment(button.dataset.adjustFeature, button.dataset.adjustValue);
+  });
+  $("#clear-adjustments").addEventListener("click", clearAdjustments);
   $("#rec-refresh").addEventListener("click", () => {
     computeRecommendations();
     renderRecommendations();

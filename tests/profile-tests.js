@@ -134,7 +134,7 @@ test("version 1 and 2 backups import with an empty survey", () => {
   const v2 = P.validateProfileData({ format: "sitcom-tracker-profile", version: 2, shows: { "taxi-1978": { status: "seen" } } }, catalog);
   assert.deepEqual(v1.profile.survey, {});
   assert.deepEqual(v2.profile.survey, {});
-  assert.equal(v2.profile.version, 3);
+  assert.equal(v2.profile.version, P.PROFILE_VERSION);
 });
 
 test("unknown survey questions or answers are skipped and reported", () => {
