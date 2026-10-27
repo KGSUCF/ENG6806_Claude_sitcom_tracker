@@ -1,41 +1,376 @@
+/* Sitcom Tracker: a cozy, retro-living-room theme.
+   Colors are defined once as variables, with a darker "evening" set
+   for people whose device is in dark mode. */
+
+:root {
+  --bg: #fbf3e4;          /* warm cream wallpaper */
+  --surface: #fffaf1;     /* cards and panels */
+  --text: #3a2a1f;        /* dark walnut */
+  --muted: #6e5848;
+  --border: #e3d3bd;
+  --accent: #c8553d;      /* tomato-red TV cabinet */
+  --accent-text: #ffffff;
+  --screen: #9fd3c7;      /* glowing teal screen */
+  --yes: #2f7d4f;
+  --meh: #946200;
+  --no: #b03a2e;
+  --focus: #1f6feb;
+  --shadow: 0 2px 0 var(--border), 0 6px 14px rgba(58, 42, 31, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #211a16;
+    --surface: #2d241e;
+    --text: #f6ead8;
+    --muted: #cdb9a3;
+    --border: #4a3c31;
+    --accent: #e0745c;
+    --accent-text: #1d1410;
+    --screen: #5fb3a1;
+    --yes: #7fd19b;
+    --meh: #f0c05a;
+    --no: #f08c80;
+    --focus: #8ab4ff;
+    --shadow: 0 2px 0 #18120f, 0 6px 14px rgba(0, 0, 0, 0.3);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
-  font-family: system-ui, sans-serif;
-  line-height: 1.5;
-  max-width: 50rem;
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg);
+}
+
+h1, h2, h3 {
+  font-family: "Trebuchet MS", "Avenir Next", system-ui, sans-serif;
+  line-height: 1.2;
+}
+
+a {
+  color: var(--accent);
+}
+
+code {
+  font-size: 0.9em;
+  background: var(--border);
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+}
+
+main,
+.site-header,
+.site-footer {
+  max-width: 72rem;
   margin: 0 auto;
   padding: 0 1rem;
-  color: #222;
-  background: #fafafa;
 }
 
-header {
-  border-bottom: 2px solid #ccc;
-  margin-bottom: 1rem;
+/* Keyboard users see a clear ring around whatever is focused. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
-#show-list {
-  list-style: none;
-  padding: 0;
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0.5rem;
+  background: var(--surface);
+  padding: 0.5rem 1rem;
+  z-index: 10;
 }
 
-#show-list li {
-  padding: 0.4rem 0;
-  border-bottom: 1px solid #e5e5e5;
+.skip-link:focus {
+  left: 0.5rem;
 }
 
-.years {
-  color: #666;
-  margin-left: 0.5rem;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- Header ------------------------------------------------------------ */
+
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  padding-bottom: 1rem;
+}
+
+.tv-icon {
+  width: 4rem;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.site-header h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  letter-spacing: 0.01em;
+}
+
+.tagline {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+
+/* --- Panels and controls ---------------------------------------------- */
+
+.panel {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 18px;
+  padding: 1rem 1.25rem 1.25rem;
+  margin: 1rem 0;
+  box-shadow: var(--shadow);
+}
+
+.panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.3rem;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.75rem 1rem;
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+input[type="search"],
+select {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  min-height: 2.75rem;
+  width: 100%;
+}
+
+button,
+.file-button {
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 999px;
+  border: 2px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+  padding: 0.5rem 1.1rem;
+  min-height: 2.75rem;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.button-secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.file-button {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The real file input is hidden but still reachable by keyboard through its label. */
+.file-button input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.file-button:focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+}
+
+/* --- Messages ----------------------------------------------------------- */
+
+.summary {
+  font-weight: 600;
+  margin: 1.25rem 0 0.25rem;
+}
+
+.rating-key {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.notice {
+  border: 2px solid var(--no);
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.notice p {
+  margin: 0 0 0.5rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  border: 2px dashed var(--border);
+  border-radius: 18px;
+  color: var(--muted);
+}
+
+.import-preview {
+  border-top: 2px dashed var(--border);
+  padding-top: 0.5rem;
 }
 
 .error {
-  color: #a00;
+  color: var(--no);
+  font-weight: 600;
 }
 
-footer {
-  margin-top: 2rem;
-  padding: 1rem 0;
-  border-top: 1px solid #ccc;
-  font-size: 0.85rem;
-  color: #555;
+/* --- Show cards (little TV screens) -------------------------------------- */
+
+.show-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 1rem;
+}
+
+.show-card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 18px;
+  padding: 0.9rem 1rem 1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+.show-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.show-meta {
+  margin: 0.2rem 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.rating-group {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) auto;
+  gap: 0.4rem;
+}
+
+.rate,
+.rate-clear {
+  border-radius: 12px;
+  padding: 0.35rem 0.4rem;
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+}
+
+.rate-clear {
+  justify-content: center;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.rate-meaning {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* A pressed rating button fills with its color, plus a check mark, so the
+   choice is not shown by color alone. */
+.rate[aria-pressed="true"] {
+  color: var(--surface);
+}
+
+.rate[aria-pressed="true"] .rate-meaning {
+  color: inherit;
+}
+
+.rate[aria-pressed="true"] .rate-label::before {
+  content: "✓ ";
+}
+
+.rate-yes[aria-pressed="true"] { background: var(--yes); border-color: var(--yes); }
+.rate-meh[aria-pressed="true"] { background: var(--meh); border-color: var(--meh); }
+.rate-no[aria-pressed="true"]  { background: var(--no);  border-color: var(--no); }
+
+/* --- Footer --------------------------------------------------------------- */
+
+.site-footer {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+  border-top: 2px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* --- Small screens --------------------------------------------------------- */
+
+@media (max-width: 30rem) {
+  .rating-group {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .rate-clear {
+    grid-column: 1 / -1;
+  }
 }

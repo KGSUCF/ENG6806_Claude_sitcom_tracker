@@ -8,7 +8,7 @@ A personal sitcom discovery tool, built as a static web page for GitHub Pages
 - answer a short taste survey; and
 - get recommendations for shows you might enjoy.
 
-**Status:** Stage 2 (page skeleton). The page loads the catalog and lists every show.
+**Status:** Stage 2 complete: a working tracker with search, filters, optional ratings, and backups.
 
 ## Ground rules
 
@@ -105,51 +105,87 @@ Checked with a one-off script; no changes were made to the data.
 ### Licensing and attribution
 
 Sources have different terms (see `meta.source_reuse`). TVmaze-derived fields
-require attribution and ShareAlike compliance, so the page will include a
+require attribution and ShareAlike compliance, so the page footer includes a
 credit line. No blanket license is claimed for the dataset.
 
-## Proposed file structure
+## File structure
 
 ```
 index.html          page structure (repository root, required by GitHub Pages)
-style.css           styling
-app.js              JavaScript (may be split into a few files later if it grows)
+style.css           styling (cozy TV theme, light and dark)
+js/profile.js       personal data: browser storage, backup export/import, validation
+js/app.js           page behavior: loading the catalog, search, filters, ratings
 catalog.json        working dataset (read-only)
 Claudesitcoms.json  reference snapshot (not loaded)
+.gitignore          keeps exported personal backups out of the repository
 README.md           this file
 ```
 
-## Planned stages
+## Stages
 
-Each stage is a small, separate set of commits. Later features are not started early.
+The work follows a set of prepared prompts, one stage at a time.
+Later features are not started early.
 
-1. **Inspect and plan** – review the catalog, check integrity, write this README.
-2. **Page skeleton** – `index.html`, `style.css`, `app.js`; load `catalog.json` and show a basic list.
-3. **Browse and search** – search by title; filter by decade, kind, medium, country.
-4. **Viewing history** – mark shows as seen quickly (for example, a checklist by decade
-   or search), saved in the browser's `localStorage`, separate from the catalog.
-5. **Optional ratings** – a simple scale on any seen show; never required.
-6. **Taste survey** – a few questions mapped to catalog tags.
-7. **Recommendations** – score unseen shows from `documented_selection` against ratings
-   and survey answers, and explain each suggestion.
-8. **Export/import and polish** – save/load the personal profile as a separate JSON file
-   (applying `id_aliases` on import), accessibility checks, and GitHub Pages deployment.
+1. **Inspect and plan**: review the catalog, check integrity, write this README. *(done)*
+2. **First working tracker**: search, decade/kind/medium filters, optional Yes/Meh/No
+   ratings, browser storage, versioned backup export/import. *(done)*
+3. **Viewing history**: Seen / Not seen / Unknown, separate from ratings, with a
+   quick checklist mode and undo.
+4. **Recommendations**: transparent, deterministic scoring with explanations.
+5. **Taste survey**: about eight optional questions that adjust recommendations.
+6. **Inspect assumptions**: "What your ratings suggest", with More/Less/Ignore controls.
+7. **Revision through a branch and pull request**, based on real use of the page.
+
+## Using the tracker
+
+- **Search** matches show titles and recorded alternate titles.
+- **Filters**: premiere decade (`derived.premiere_decade`), kind (sitcom, dramedy,
+  sketch), medium (live-action, animated, puppet), and your own rating.
+- **Ratings** are optional: **Yes** = I liked it, **Meh** = It was okay,
+  **No** = I didn't like it. Press a rating again, or press **Clear**, to remove it.
+- **Saving**: ratings are saved in this browser's `localStorage` (key
+  `sitcomTracker.profile`) and survive a refresh. Clearing site data erases them,
+  so export a backup now and then.
+- **Export** downloads `sitcom-tracker-backup-YYYY-MM-DD.json`.
+- **Import** checks the file first and changes nothing until you choose:
+  - *Replace*: your current data is swapped for the file's data.
+  - *Merge*: the file's ratings are added; where both rate the same show, the file wins.
+  Former show IDs are translated with `id_aliases`; unknown IDs and invalid values are
+  skipped and listed.
+
+### Backup format (version 1)
+
+```json
+{
+  "format": "sitcom-tracker-profile",
+  "version": 1,
+  "exported_at": "2026-10-27T12:00:00.000Z",
+  "catalog_version": "3.0.0",
+  "ratings": { "cheers-1982": "yes", "taxi-1978": "meh" }
+}
+```
+
+## Previewing locally
+
+Browsers refuse to let a page opened straight from disk (`file://…`) load
+`catalog.json`, so serve the folder with a tiny local web server. With Python
+installed, run this in the repository folder:
+
+```
+python3 -m http.server 8000
+```
+
+Then open <http://localhost:8000>. (On Windows, use `py -m http.server 8000`.)
+Press Ctrl+C in the terminal to stop the server. If the catalog cannot load, the
+page shows an error message with a "Try again" button instead of a blank list.
 
 ## How development works
 
 - Changes are made one stage at a time, in small steps.
 - Claude makes, commits, and pushes each change on the working branch, then summarizes
   what changed and how to check it. The project owner reviews the result on GitHub.
-- Commit messages are short and describe one change (for example, "Add page skeleton").
-- To test locally, serve the folder instead of opening the file directly, because
-  browsers block `fetch()` of local files:
-
-  ```
-  python3 -m http.server 8000
-  ```
-
-  Then open <http://localhost:8000>.
+- Commit messages are short and describe one change.
 
 ## Existing code
 
-The original repository had no application code, only the two JSON files, which are kept as they are. Stage 2 added `index.html`, `style.css`, and `app.js`.
+The original repository had no application code, only the two JSON files, which are kept as they are. All application code (`index.html`, `style.css`, `js/`) was written for this project.

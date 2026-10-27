@@ -7,25 +7,105 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <h1>Sitcom Tracker</h1>
-    <p>A personal sitcom discovery tool.</p>
+  <a class="skip-link" href="#shows">Skip to the show list</a>
+
+  <header class="site-header">
+    <svg class="tv-icon" viewBox="0 0 64 56" aria-hidden="true">
+      <path d="M22 4 L32 14 L42 4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <rect x="4" y="14" width="56" height="38" rx="9" fill="currentColor"/>
+      <rect x="10" y="20" width="36" height="26" rx="6" fill="var(--screen)"/>
+      <circle cx="53" cy="26" r="3" fill="var(--screen)"/>
+      <circle cx="53" cy="37" r="3" fill="var(--screen)"/>
+    </svg>
+    <div>
+      <h1>Sitcom Tracker</h1>
+      <p class="tagline">Your cozy couch guide to decades of sitcoms.</p>
+    </div>
   </header>
 
   <main>
-    <!-- app.js fills these in once catalog.json has loaded. -->
-    <p id="status">Loading catalog…</p>
-    <ul id="show-list"></ul>
+    <!-- Shown only when something needs attention (loading error, storage problem). -->
+    <div id="notice" class="notice" role="alert" hidden></div>
+
+    <section class="panel" aria-labelledby="find-heading">
+      <h2 id="find-heading">Find shows</h2>
+      <form id="filters" class="filters" role="search">
+        <div class="field field-wide">
+          <label for="search">Search by title</label>
+          <input id="search" type="search" autocomplete="off" placeholder="e.g. Cheers">
+        </div>
+        <div class="field">
+          <label for="filter-decade">Premiere decade</label>
+          <select id="filter-decade"><option value="">All decades</option></select>
+        </div>
+        <div class="field">
+          <label for="filter-kind">Kind of show</label>
+          <select id="filter-kind"><option value="">All kinds</option></select>
+        </div>
+        <div class="field">
+          <label for="filter-medium">Medium</label>
+          <select id="filter-medium"><option value="">All media</option></select>
+        </div>
+        <div class="field">
+          <label for="filter-rating">My rating</label>
+          <select id="filter-rating">
+            <option value="">Any</option>
+            <option value="rated">Rated</option>
+            <option value="unrated">Not rated</option>
+            <option value="yes">Yes – I liked it</option>
+            <option value="meh">Meh – It was okay</option>
+            <option value="no">No – I didn't like it</option>
+          </select>
+        </div>
+        <div class="field field-button">
+          <button type="reset" class="button-secondary">Clear filters</button>
+        </div>
+      </form>
+    </section>
+
+    <section aria-labelledby="shows-heading">
+      <h2 id="shows-heading" class="visually-hidden">Shows</h2>
+      <p id="summary" class="summary" aria-live="polite">Loading catalog…</p>
+      <p class="rating-key">
+        Ratings are optional:
+        <strong>Yes</strong> = I liked it,
+        <strong>Meh</strong> = It was okay,
+        <strong>No</strong> = I didn't like it.
+      </p>
+      <div id="empty-state" class="empty-state" hidden>
+        <p>No shows match these filters.</p>
+        <button type="button" id="empty-clear" class="button-secondary">Clear filters</button>
+      </div>
+      <ul id="shows" class="show-grid" tabindex="-1"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="data-heading">
+      <h2 id="data-heading">Your data</h2>
+      <p>
+        Your ratings are saved only in this browser. They are never added to
+        <code>catalog.json</code> or to the repository. Export a backup to keep a copy
+        or move it to another browser.
+      </p>
+      <div class="data-actions">
+        <button type="button" id="export-button">Export backup (JSON)</button>
+        <label class="button-secondary file-button">
+          Import backup…
+          <input type="file" id="import-file" accept="application/json,.json">
+        </label>
+      </div>
+      <div id="import-preview" class="import-preview" hidden aria-live="polite"></div>
+    </section>
   </main>
 
-  <footer>
+  <footer class="site-footer">
     <p>
-      Show data: <code>catalog.json</code>, a curated research catalog. Some facts are
-      imported and not independently verified. Includes data from
-      <a href="https://www.tvmaze.com/api">TVmaze</a> (CC BY-SA).
+      Show data comes from <code>catalog.json</code>, a curated research catalog (not every
+      sitcom). Some facts are imported and not independently verified. Includes data from
+      <a href="https://www.tvmaze.com/api">TVmaze</a>, used under CC BY-SA.
     </p>
   </footer>
 
-  <script src="app.js"></script>
+  <script src="js/profile.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
