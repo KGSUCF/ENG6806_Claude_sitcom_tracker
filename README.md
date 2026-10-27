@@ -8,7 +8,7 @@ A personal sitcom discovery tool, built as a static web page for GitHub Pages
 - answer a short taste survey; and
 - get recommendations for shows you might enjoy.
 
-**Status:** Stage 2 complete: a working tracker with search, filters, optional ratings, and backups.
+**Status:** Stage 3 complete: viewing history (Seen / Not seen / Unknown) separate from optional ratings, with a quick checklist mode and undo.
 
 ## Ground rules
 
@@ -114,7 +114,8 @@ credit line. No blanket license is claimed for the dataset.
 index.html          page structure (repository root, required by GitHub Pages)
 style.css           styling (cozy TV theme, light and dark)
 js/profile.js       personal data: browser storage, backup export/import, validation
-js/app.js           page behavior: loading the catalog, search, filters, ratings
+js/app.js           page behavior: loading the catalog, search, filters, history, ratings, undo
+tests/              Node.js checks for development (not loaded by the page)
 catalog.json        working dataset (read-only)
 Claudesitcoms.json  reference snapshot (not loaded)
 .gitignore          keeps exported personal backups out of the repository
@@ -130,7 +131,7 @@ Later features are not started early.
 2. **First working tracker**: search, decade/kind/medium filters, optional Yes/Meh/No
    ratings, browser storage, versioned backup export/import. *(done)*
 3. **Viewing history**: Seen / Not seen / Unknown, separate from ratings, with a
-   quick checklist mode and undo.
+   quick checklist mode and undo. *(done)*
 4. **Recommendations**: transparent, deterministic scoring with explanations.
 5. **Taste survey**: about eight optional questions that adjust recommendations.
 6. **Inspect assumptions**: "What your ratings suggest", with More/Less/Ignore controls.
@@ -138,32 +139,75 @@ Later features are not started early.
 
 ## Using the tracker
 
+### Viewing status and ratings are separate
+
+| Viewing status | Meaning |
+|---|---|
+| **Unknown** | Not recorded yet (the starting point for every show) |
+| **Seen** | You've watched it. A rating is optional. |
+| **Not seen** | You're sure you haven't watched it |
+
+Optional ratings: **Yes** = I liked it, **Meh** = It was okay, **No** = I didn't like it.
+**Can't judge** records *Seen with no rating*, for shows you saw too long ago to judge.
+
+Rules the page follows:
+- Giving a rating marks the show Seen. Marking Seen never asks for a rating.
+- Unknown and Not seen are different; nothing is marked Not seen unless you say so.
+- Nothing is inferred from your age, other shows, or franchise connections.
+- If you mark a rated show Not seen or Unknown, the page asks first, because the
+  rating would be removed. Choosing "Keep it as Seen" changes nothing.
+
+### Two views
+
+- **Browse & rate**: a card per show with status and rating buttons.
+- **Quick history**: a compact checklist. Tick shows you recognize as Seen; use the
+  small **Not seen** button only when you're sure. A bulk button marks every
+  still-Unknown show *in the current filtered list* as Not seen (it asks first).
+  Filter by decade or search to keep each pass short.
+
+**Undo**: every change, including bulk changes, appears in a bar at the bottom of
+the screen with an **Undo** button. Up to 50 recent steps can be undone (until you
+reload the page).
+
+### Search, filters, saving
+
 - **Search** matches show titles and recorded alternate titles.
 - **Filters**: premiere decade (`derived.premiere_decade`), kind (sitcom, dramedy,
-  sketch), medium (live-action, animated, puppet), and your own rating.
-- **Ratings** are optional: **Yes** = I liked it, **Meh** = It was okay,
-  **No** = I didn't like it. Press a rating again, or press **Clear**, to remove it.
-- **Saving**: ratings are saved in this browser's `localStorage` (key
-  `sitcomTracker.profile`) and survive a refresh. Clearing site data erases them,
+  sketch), medium (live-action, animated, puppet), and your history (Unknown, Seen,
+  Not seen, Seen with no rating, or a specific rating).
+- **Saving**: your data is saved in this browser's `localStorage` (key
+  `sitcomTracker.profile`) and survives a refresh. Clearing site data erases it,
   so export a backup now and then.
-- **Export** downloads `sitcom-tracker-backup-YYYY-MM-DD.json`.
+- **Export** downloads `sitcom-tracker-backup-YYYY-MM-DD.json`. That file name is
+  listed in `.gitignore` so a backup isn't committed by accident.
 - **Import** checks the file first and changes nothing until you choose:
   - *Replace*: your current data is swapped for the file's data.
-  - *Merge*: the file's ratings are added; where both rate the same show, the file wins.
-  Former show IDs are translated with `id_aliases`; unknown IDs and invalid values are
-  skipped and listed.
+  - *Merge*: the file's entries are added; where both record the same show, the file wins.
+  Former show IDs are translated with `id_aliases`; unknown IDs and invalid or
+  contradictory entries (such as a rating on a Not seen show) are skipped and listed.
 
-### Backup format (version 1)
+### Backup format
+
+Version 2 (current):
 
 ```json
 {
   "format": "sitcom-tracker-profile",
-  "version": 1,
+  "version": 2,
   "exported_at": "2026-10-27T12:00:00.000Z",
   "catalog_version": "3.0.0",
-  "ratings": { "cheers-1982": "yes", "taxi-1978": "meh" }
+  "shows": {
+    "cheers-1982": { "status": "seen", "rating": "yes" },
+    "taxi-1978":   { "status": "seen" },
+    "soap-1977":   { "status": "not_seen" }
+  }
 }
 ```
+
+A show with no entry is Unknown. Version 1 backups (`"ratings": { "cheers-1982": "yes" }`)
+still import: each rated show becomes Seen with that rating. Data saved in the browser
+by version 1 is upgraded automatically the first time the page loads, and the original
+is kept under the storage key `sitcomTracker.profile.v1-backup`.
 
 ## Previewing locally
 
@@ -178,6 +222,12 @@ python3 -m http.server 8000
 Then open <http://localhost:8000>. (On Windows, use `py -m http.server 8000`.)
 Press Ctrl+C in the terminal to stop the server. If the catalog cannot load, the
 page shows an error message with a "Try again" button instead of a blank list.
+
+To run the development checks (requires [Node.js](https://nodejs.org/)):
+
+```
+node tests/profile-tests.js
+```
 
 ## How development works
 

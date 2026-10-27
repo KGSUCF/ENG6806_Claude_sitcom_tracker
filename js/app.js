@@ -1,11 +1,16 @@
 // Sitcom Tracker: page behavior.
 // Loads catalog.json (read-only), shows it with search and filters, and lets
-// you rate shows. Ratings live in your profile (see profile.js), never in the catalog.
+// you record what you've seen and how much you liked it. That personal data
+// lives in your profile (see profile.js), never in the catalog.
+
+const UNDO_LIMIT = 50;
 
 const state = {
-  catalog: null,   // the parsed catalog.json, plus a showsById lookup
-  profile: null,   // your personal data
-  pendingImport: null, // a validated import waiting for Replace/Merge/Cancel
+  catalog: null,        // the parsed catalog.json, plus a showsById lookup
+  profile: null,        // your personal data
+  mode: "browse",       // "browse" (cards with ratings) or "history" (compact checklist)
+  undoStack: [],        // recent changes: { label, before: [[id, entry or null], ...] }
+  pendingImport: null,  // a validated import waiting for Replace/Merge/Cancel
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -23,6 +28,10 @@ function el(tag, props = {}, ...children) {
   return node;
 }
 
+function showTitle(id) {
+  return state.catalog.showsById.get(id).title;
+}
+
 // --- Show display ---------------------------------------------------------
 
 // A missing end year does not mean the show is running (see the catalog's
@@ -36,25 +45,37 @@ function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function makeRatingButtons(show) {
-  const current = state.profile.ratings[show.id];
-  const group = el("div", { className: "rating-group", role: "group", ariaLabel: `Your rating for ${show.title}` });
-  for (const [value, { label, meaning }] of Object.entries(RATINGS)) {
-    group.append(el("button", {
-      type: "button",
-      className: `rate rate-${value}`,
-      dataset: { action: "rate", id: show.id, rating: value },
-      ariaPressed: String(current === value),
-      title: meaning,
-    }, el("span", { className: "rate-label" }, label), el("span", { className: "rate-meaning" }, meaning)));
-  }
-  group.append(el("button", {
+function choiceButton({ action, id, value, pressed, label, meaning, className }) {
+  return el("button", {
     type: "button",
-    className: "rate-clear",
-    dataset: { action: "clear", id: show.id },
-    disabled: !current,
-    ariaLabel: `Clear rating for ${show.title}`,
-  }, "Clear"));
+    className,
+    dataset: { action, id, value },
+    ariaPressed: String(pressed),
+    title: meaning,
+  }, el("span", { className: "choice-label" }, label), el("span", { className: "choice-meaning" }, meaning));
+}
+
+function makeStatusButtons(show) {
+  const status = getStatus(state.profile, show.id);
+  const group = el("div", { className: "choice-group status-group", role: "group", ariaLabel: `Have you seen ${show.title}?` });
+  for (const [value, { label, meaning }] of Object.entries(STATUSES)) {
+    group.append(choiceButton({ action: "status", id: show.id, value, pressed: status === value, label, meaning, className: `choice status-${value}` }));
+  }
+  return group;
+}
+
+function makeRatingButtons(show) {
+  const status = getStatus(state.profile, show.id);
+  const rating = getRating(state.profile, show.id);
+  const group = el("div", { className: "choice-group rating-group", role: "group", ariaLabel: `Did you enjoy ${show.title}? (optional)` });
+  for (const [value, { label, meaning }] of Object.entries(RATINGS)) {
+    group.append(choiceButton({ action: "rate", id: show.id, value, pressed: rating === value, label, meaning, className: `choice rate-${value}` }));
+  }
+  // "Seen with no rating", for shows watched too long ago to judge.
+  group.append(choiceButton({
+    action: "rate", id: show.id, value: "none", pressed: status === "seen" && !rating,
+    label: "Can't judge", meaning: "Seen, too long ago", className: "choice rate-none",
+  }));
   return group;
 }
 
@@ -63,7 +84,32 @@ function makeShowCard(show) {
   return el("li", { className: "show-card", dataset: { id: show.id } },
     el("h3", { className: "show-title" }, show.title),
     el("p", { className: "show-meta" }, details.join(" · ")),
+    el("p", { className: "group-label" }, "Seen it?"),
+    makeStatusButtons(show),
+    el("p", { className: "group-label" }, "Did you enjoy it? (optional)"),
     makeRatingButtons(show),
+  );
+}
+
+// One compact line in the Quick history checklist.
+function makeHistoryRow(show) {
+  const status = getStatus(state.profile, show.id);
+  const rating = getRating(state.profile, show.id);
+  const checkboxId = `seen-${show.id}`;
+  return el("li", { className: `history-row status-${status}`, dataset: { id: show.id } },
+    el("input", { type: "checkbox", id: checkboxId, checked: status === "seen", dataset: { action: "toggle-seen", id: show.id } }),
+    el("label", { htmlFor: checkboxId },
+      el("span", { className: "history-title" }, show.title),
+      el("span", { className: "history-year" }, ` ${show.years.start ?? ""}`),
+    ),
+    rating ? el("span", { className: `badge badge-${rating}`, title: RATINGS[rating].meaning }, RATINGS[rating].label) : null,
+    el("button", {
+      type: "button",
+      className: "not-seen-toggle",
+      dataset: { action: "toggle-not-seen", id: show.id },
+      ariaPressed: String(status === "not_seen"),
+      ariaLabel: `Not seen: ${show.title}`,
+    }, "Not seen"),
   );
 }
 
@@ -75,7 +121,7 @@ function currentFilters() {
     decade: $("#filter-decade").value,
     kind: $("#filter-kind").value,
     medium: $("#filter-medium").value,
-    rating: $("#filter-rating").value,
+    history: $("#filter-history").value,
   };
 }
 
@@ -88,61 +134,149 @@ function matchesFilters(show, filters) {
   if (filters.kind && show.kind !== filters.kind) return false;
   if (filters.medium && show.medium !== filters.medium) return false;
 
-  const rating = state.profile.ratings[show.id];
-  if (filters.rating === "rated" && !rating) return false;
-  if (filters.rating === "unrated" && rating) return false;
-  if (filters.rating in RATINGS && rating !== filters.rating) return false;
-  return true;
+  const status = getStatus(state.profile, show.id);
+  const rating = getRating(state.profile, show.id);
+  switch (filters.history) {
+    case "": return true;
+    case "seen-unrated": return status === "seen" && !rating;
+    case "yes": case "meh": case "no": return rating === filters.history;
+    default: return status === filters.history;
+  }
+}
+
+function visibleShows() {
+  const filters = currentFilters();
+  return state.catalog.shows.filter((show) => matchesFilters(show, filters));
 }
 
 function renderList() {
-  const filters = currentFilters();
-  const visible = state.catalog.shows.filter((show) => matchesFilters(show, filters));
-  $("#shows").replaceChildren(...visible.map(makeShowCard));
+  const visible = visibleShows();
+  const browse = state.mode === "browse";
+  $("#shows").hidden = !browse;
+  $("#history").hidden = browse;
+  $("#browse-help").hidden = !browse;
+  $("#history-help").hidden = browse;
+  $(browse ? "#shows" : "#history").replaceChildren(...visible.map(browse ? makeShowCard : makeHistoryRow));
+  $(browse ? "#history" : "#shows").replaceChildren();
   $("#empty-state").hidden = visible.length > 0;
-  renderSummary(visible.length);
+  renderSummary(visible);
 }
 
-function renderSummary(visibleCount = document.querySelectorAll("#shows .show-card").length) {
-  const total = state.catalog.shows.length;
-  const counts = { yes: 0, meh: 0, no: 0 };
-  for (const rating of Object.values(state.profile.ratings)) counts[rating]++;
-  const rated = counts.yes + counts.meh + counts.no;
+// Re-draw just one show (card or row) and put keyboard focus back on the same control.
+function renderShow(id) {
+  const container = $(state.mode === "browse" ? "#shows" : "#history");
+  const old = container.querySelector(`[data-id="${CSS.escape(id)}"]`);
+  if (!old) return;
+  const focused = document.activeElement;
+  const focusKey = old.contains(focused) ? `[data-action="${focused.dataset.action}"]${focused.dataset.value ? `[data-value="${focused.dataset.value}"]` : ""}` : null;
+  const show = state.catalog.showsById.get(id);
+  const fresh = state.mode === "browse" ? makeShowCard(show) : makeHistoryRow(show);
+  old.replaceWith(fresh);
+  if (focusKey) fresh.querySelector(focusKey)?.focus();
+}
 
-  const showing = visibleCount === total ? `Showing all ${total} shows.` : `Showing ${visibleCount} of ${total} shows.`;
-  const ratedText = rated === 0
-    ? "You haven't rated any shows yet. Ratings are optional."
-    : `You've rated ${rated}: ${counts.yes} Yes, ${counts.meh} Meh, ${counts.no} No.`;
-  $("#summary").textContent = `${showing} ${ratedText}`;
+function renderSummary(visible = visibleShows()) {
+  const total = state.catalog.shows.length;
+  const c = countEntries(state.profile);
+  const unknown = total - c.seen - c.not_seen;
+
+  const showing = visible.length === total ? `Showing all ${total} shows.` : `Showing ${visible.length} of ${total} shows.`;
+  const history = c.seen + c.not_seen === 0
+    ? "You haven't recorded any shows yet."
+    : `Seen ${c.seen} (${c.rated} rated: ${c.yes} Yes, ${c.meh} Meh, ${c.no} No; ${c.seen - c.rated} with no rating) · Not seen ${c.not_seen} · Unknown ${unknown}.`;
+  $("#summary").textContent = `${showing} ${history}`;
+
+  if (state.mode === "history") {
+    const unknownHere = visible.filter((show) => getStatus(state.profile, show.id) === "unknown").length;
+    const bulk = $("#bulk-not-seen");
+    bulk.textContent = `Mark the ${unknownHere} Unknown show${unknownHere === 1 ? "" : "s"} in this list as Not seen`;
+    bulk.disabled = unknownHere === 0;
+  }
 }
 
 // Fill a <select> with the distinct values found in the catalog.
 function fillSelect(select, values, labelFor = capitalize) {
-  for (const value of values) {
-    select.append(el("option", { value }, labelFor(value)));
-  }
+  for (const value of values) select.append(el("option", { value }, labelFor(value)));
 }
 
 function distinct(values) {
   return [...new Set(values)].sort();
 }
 
-// --- Rating changes -------------------------------------------------------
+// --- Changing history and ratings -------------------------------------------
 
-function setRating(id, rating) {
-  if (rating) state.profile.ratings[id] = rating;
-  else delete state.profile.ratings[id];
+// Apply a list of changes [{ id, status, rating }] as one undoable step.
+function applyChanges(changes, label) {
+  const before = changes.map(({ id }) => [id, state.profile.shows[id] ? { ...state.profile.shows[id] } : null]);
+  state.undoStack.push({ label, before });
+  if (state.undoStack.length > UNDO_LIMIT) state.undoStack.shift();
+
+  for (const { id, status, rating } of changes) setEntry(state.profile, id, status, rating);
   persist();
-
-  // Update just this card so keyboard focus stays where it is.
-  const card = document.querySelector(`.show-card[data-id="${CSS.escape(id)}"]`);
-  if (card) {
-    const show = state.catalog.showsById.get(id);
-    card.querySelector(".rating-group").replaceWith(makeRatingButtons(show));
-    const focusTarget = card.querySelector(rating ? `[data-rating="${rating}"]` : ".rate");
-    focusTarget?.focus();
-  }
+  if (changes.length === 1) renderShow(changes[0].id);
+  else renderList();
   renderSummary();
+  showUndo(label);
+}
+
+function undo() {
+  const step = state.undoStack.pop();
+  if (!step) return;
+  for (const [id, entry] of step.before) {
+    if (entry) state.profile.shows[id] = entry;
+    else delete state.profile.shows[id];
+  }
+  persist();
+  renderList();
+  showUndo(`Undone: ${step.label}`, true);
+}
+
+function showUndo(message, afterUndo = false) {
+  $("#undo-bar").hidden = false;
+  const remaining = state.undoStack.length;
+  $("#undo-message").textContent = afterUndo && remaining > 0 ? `${message} (${remaining} more step${remaining === 1 ? "" : "s"} can be undone)` : message;
+  $("#undo-button").disabled = remaining === 0;
+}
+
+// Ask before a status change would remove a rating, instead of dropping it silently.
+async function changeStatus(id, newStatus) {
+  const rating = getRating(state.profile, id);
+  if (rating && newStatus !== "seen") {
+    const ok = await confirmChoice({
+      title: `Remove your rating for ${showTitle(id)}?`,
+      text: `You rated it "${RATINGS[rating].label} – ${RATINGS[rating].meaning}". A rating means you've seen the show, so marking it ${STATUSES[newStatus].label} will remove that rating.`,
+      confirm: `Remove rating and mark ${STATUSES[newStatus].label}`,
+      cancel: "Keep it as Seen",
+    });
+    if (!ok) {
+      renderShow(id); // put a checkbox back the way it was
+      return;
+    }
+  }
+  if (newStatus === getStatus(state.profile, id) && !(rating && newStatus !== "seen")) return;
+  // Moving to Seen keeps an existing rating.
+  applyChanges([{ id, status: newStatus, rating: newStatus === "seen" ? rating : null }], `${showTitle(id)}: ${STATUSES[newStatus].label}`);
+}
+
+function changeRating(id, value) {
+  const current = getRating(state.profile, id);
+  // "none", or pressing the current rating again, leaves the show Seen with no rating.
+  const rating = value === "none" || value === current ? null : value;
+  if (rating === current && getStatus(state.profile, id) === "seen") return;
+  const label = rating ? `${showTitle(id)}: rated ${RATINGS[rating].label}` : `${showTitle(id)}: Seen, no rating`;
+  applyChanges([{ id, status: "seen", rating }], label);
+}
+
+async function markVisibleUnknownNotSeen() {
+  const ids = visibleShows().filter((show) => getStatus(state.profile, show.id) === "unknown").map((show) => show.id);
+  if (ids.length === 0) return;
+  const ok = await confirmChoice({
+    title: `Mark ${ids.length} show${ids.length === 1 ? "" : "s"} as Not seen?`,
+    text: "Every show in the current list that is still Unknown will be marked Not seen. Shows you've marked Seen or Not seen are not touched. You can undo this.",
+    confirm: "Mark them Not seen",
+    cancel: "Cancel",
+  });
+  if (ok) applyChanges(ids.map((id) => ({ id, status: "not_seen", rating: null })), `${ids.length} show${ids.length === 1 ? "" : "s"} marked Not seen`);
 }
 
 function persist() {
@@ -151,7 +285,26 @@ function persist() {
   }
 }
 
-// --- Notices --------------------------------------------------------------
+// --- Dialog and notices -----------------------------------------------------
+
+// Show the confirmation dialog and resolve to true (confirm) or false.
+function confirmChoice({ title, text, confirm, cancel }) {
+  const dialog = $("#confirm-dialog");
+  $("#confirm-title").textContent = title;
+  $("#confirm-text").textContent = text;
+  $("#confirm-yes").textContent = confirm;
+  $("#confirm-no").textContent = cancel;
+  const returnFocus = document.activeElement;
+  dialog.returnValue = "cancel";
+  dialog.showModal();
+  $("#confirm-no").focus();
+  return new Promise((resolve) => {
+    dialog.addEventListener("close", () => {
+      resolve(dialog.returnValue === "confirm");
+      returnFocus?.focus();
+    }, { once: true });
+  });
+}
 
 function showNotice(message, { retry = false } = {}) {
   const notice = $("#notice");
@@ -200,18 +353,19 @@ async function handleImportFile(file) {
   }
 
   state.pendingImport = result.profile;
-  const incoming = Object.keys(result.profile.ratings).length;
-  const current = Object.keys(state.profile.ratings).length;
-  const conflicts = Object.keys(result.profile.ratings)
-    .filter((id) => id in state.profile.ratings && state.profile.ratings[id] !== result.profile.ratings[id]).length;
+  const incoming = countEntries(result.profile);
+  const currentTotal = Object.keys(state.profile.shows).length;
+  const incomingTotal = Object.keys(result.profile.shows).length;
+  const conflicts = Object.entries(result.profile.shows)
+    .filter(([id, entry]) => id in state.profile.shows && JSON.stringify(state.profile.shows[id]) !== JSON.stringify(entry)).length;
 
   preview.replaceChildren(
-    el("p", {}, el("strong", {}, `"${file.name}" looks good: ${incoming} rating(s) found.`)),
+    el("p", {}, el("strong", {}, `"${file.name}" looks good: ${incoming.seen} Seen (${incoming.rated} rated), ${incoming.not_seen} Not seen.`)),
     result.warnings.length ? el("ul", {}, ...result.warnings.map((w) => el("li", {}, w))) : null,
     el("p", {}, "Choose how to use it. Nothing changes until you pick one:"),
     el("ul", {},
-      el("li", {}, el("strong", {}, "Replace: "), `your current ${current} rating(s) are removed and the ${incoming} from the file are used instead.`),
-      el("li", {}, el("strong", {}, "Merge: "), `ratings from the file are added to yours. Where both have a different rating for the same show (${conflicts} show(s)), the file's rating wins. Your other ratings stay.`),
+      el("li", {}, el("strong", {}, "Replace: "), `your current ${currentTotal} recorded show(s) are removed and the ${incomingTotal} from the file are used instead.`),
+      el("li", {}, el("strong", {}, "Merge: "), `shows from the file are added to yours. Where both record the same show differently (${conflicts} show(s)), the file's entry wins. Your other shows stay.`),
     ),
     el("div", { className: "data-actions" },
       el("button", { type: "button", dataset: { importMode: "replace" } }, "Replace my data"),
@@ -225,6 +379,8 @@ function finishImport(mode) {
   const preview = $("#import-preview");
   if (mode !== "cancel" && state.pendingImport) {
     state.profile = mode === "replace" ? state.pendingImport : mergeProfiles(state.profile, state.pendingImport);
+    state.undoStack = []; // earlier undo steps no longer match the data
+    $("#undo-bar").hidden = true;
     persist();
     renderList();
     preview.replaceChildren(el("p", {}, mode === "replace" ? "Import complete: your data was replaced." : "Import complete: the backup was merged into your data."));
@@ -237,6 +393,14 @@ function finishImport(mode) {
 
 // --- Start-up -------------------------------------------------------------
 
+function setMode(mode) {
+  state.mode = mode;
+  for (const tab of document.querySelectorAll(".mode-tab")) {
+    tab.setAttribute("aria-pressed", String(tab.dataset.mode === mode));
+  }
+  renderList();
+}
+
 function wireEvents() {
   $("#filters").addEventListener("input", renderList);
   $("#filters").addEventListener("submit", (event) => event.preventDefault());
@@ -244,17 +408,30 @@ function wireEvents() {
   $("#filters").addEventListener("reset", () => setTimeout(renderList));
   $("#empty-clear").addEventListener("click", () => $("#filters").reset());
 
+  for (const tab of document.querySelectorAll(".mode-tab")) {
+    tab.addEventListener("click", () => setMode(tab.dataset.mode));
+  }
+
   $("#shows").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
-    const { action, id, rating } = button.dataset;
-    if (action === "rate") {
-      // Pressing the current rating again clears it.
-      setRating(id, state.profile.ratings[id] === rating ? null : rating);
-    } else if (action === "clear") {
-      setRating(id, null);
-    }
+    const { action, id, value } = button.dataset;
+    if (action === "status") changeStatus(id, value);
+    else if (action === "rate") changeRating(id, value);
   });
+
+  $("#history").addEventListener("change", (event) => {
+    const box = event.target.closest('input[data-action="toggle-seen"]');
+    if (box) changeStatus(box.dataset.id, box.checked ? "seen" : "unknown");
+  });
+  $("#history").addEventListener("click", (event) => {
+    const button = event.target.closest('button[data-action="toggle-not-seen"]');
+    if (!button) return;
+    const id = button.dataset.id;
+    changeStatus(id, getStatus(state.profile, id) === "not_seen" ? "unknown" : "not_seen");
+  });
+  $("#bulk-not-seen").addEventListener("click", markVisibleUnknownNotSeen);
+  $("#undo-button").addEventListener("click", undo);
 
   $("#export-button").addEventListener("click", exportBackup);
   $("#import-file").addEventListener("change", (event) => {

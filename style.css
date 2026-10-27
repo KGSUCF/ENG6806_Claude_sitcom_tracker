@@ -14,6 +14,7 @@
   --yes: #2f7d4f;
   --meh: #946200;
   --no: #b03a2e;
+  --seen: #2b6f8a;
   --focus: #1f6feb;
   --shadow: 0 2px 0 var(--border), 0 6px 14px rgba(58, 42, 31, 0.08);
 }
@@ -31,6 +32,7 @@
     --yes: #7fd19b;
     --meh: #f0c05a;
     --no: #f08c80;
+    --seen: #7cc4dd;
     --focus: #8ab4ff;
     --shadow: 0 2px 0 #18120f, 0 6px 14px rgba(0, 0, 0, 0.3);
   }
@@ -302,55 +304,209 @@ button:disabled {
   font-size: 0.92rem;
 }
 
-.rating-group {
-  margin-top: auto;
+.group-label {
+  margin: 0.4rem 0 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.choice-group {
   display: grid;
-  grid-template-columns: repeat(3, 1fr) auto;
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.4rem;
 }
 
-.rate,
-.rate-clear {
+.rating-group {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.choice {
   border-radius: 12px;
-  padding: 0.35rem 0.4rem;
+  padding: 0.35rem 0.3rem;
   background: transparent;
   color: var(--text);
   border-color: var(--border);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   line-height: 1.2;
 }
 
-.rate-clear {
-  justify-content: center;
-  font-weight: 500;
-  font-size: 0.9rem;
-}
-
-.rate-meaning {
+.choice-meaning {
   font-size: 0.72rem;
   font-weight: 500;
   color: var(--muted);
 }
 
-/* A pressed rating button fills with its color, plus a check mark, so the
+/* A pressed button fills with its color, plus a check mark, so the
    choice is not shown by color alone. */
-.rate[aria-pressed="true"] {
+.choice[aria-pressed="true"] {
   color: var(--surface);
 }
 
-.rate[aria-pressed="true"] .rate-meaning {
+.choice[aria-pressed="true"] .choice-meaning {
   color: inherit;
 }
 
-.rate[aria-pressed="true"] .rate-label::before {
+.choice[aria-pressed="true"] .choice-label::before {
   content: "✓ ";
 }
 
-.rate-yes[aria-pressed="true"] { background: var(--yes); border-color: var(--yes); }
-.rate-meh[aria-pressed="true"] { background: var(--meh); border-color: var(--meh); }
-.rate-no[aria-pressed="true"]  { background: var(--no);  border-color: var(--no); }
+.status-unknown[aria-pressed="true"] { background: var(--muted); border-color: var(--muted); }
+.status-seen[aria-pressed="true"]    { background: var(--seen);  border-color: var(--seen); }
+.status-not_seen[aria-pressed="true"] { background: var(--text); border-color: var(--text); }
+.rate-yes[aria-pressed="true"]  { background: var(--yes); border-color: var(--yes); }
+.rate-meh[aria-pressed="true"]  { background: var(--meh); border-color: var(--meh); }
+.rate-no[aria-pressed="true"]   { background: var(--no);  border-color: var(--no); }
+.rate-none[aria-pressed="true"] { background: var(--seen); border-color: var(--seen); }
+
+/* --- View tabs ------------------------------------------------------------ */
+
+.mode-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.mode-tab {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.mode-tab[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+/* --- Quick history checklist ------------------------------------------- */
+
+.history-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.35rem 0.75rem;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 0.15rem 0.3rem 0.15rem 0.6rem;
+  min-height: 2.75rem;
+}
+
+.history-row.status-seen {
+  border-color: var(--seen);
+}
+
+.history-row.status-not_seen {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.history-row input[type="checkbox"] {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex-shrink: 0;
+  accent-color: var(--seen);
+}
+
+.history-row label {
+  flex: 1;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.4rem 0;
+}
+
+.history-year {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.not-seen-toggle {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.6rem;
+  min-height: 2.25rem;
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.not-seen-toggle[aria-pressed="true"] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
+}
+
+.not-seen-toggle[aria-pressed="true"]::before {
+  content: "✓ ";
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  color: var(--surface);
+}
+
+.badge-yes { background: var(--yes); }
+.badge-meh { background: var(--meh); }
+.badge-no  { background: var(--no); }
+
+/* --- Undo bar and dialog ---------------------------------------------- */
+
+.undo-bar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 5;
+  max-width: 40rem;
+  margin: 1rem auto 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--text);
+  color: var(--bg);
+  border-radius: 16px;
+  padding: 0.4rem 0.5rem 0.4rem 1rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.undo-bar[hidden] {
+  display: none;
+}
+
+.undo-bar p {
+  flex: 1;
+  margin: 0;
+}
+
+dialog {
+  max-width: 30rem;
+  border: 2px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 1.25rem;
+}
+
+dialog::backdrop {
+  background: rgba(30, 20, 15, 0.5);
+}
+
+dialog h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
 
 /* --- Footer --------------------------------------------------------------- */
 
@@ -367,10 +523,6 @@ button:disabled {
 
 @media (max-width: 30rem) {
   .rating-group {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .rate-clear {
-    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, 1fr);
   }
 }

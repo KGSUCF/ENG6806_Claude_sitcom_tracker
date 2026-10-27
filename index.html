@@ -27,6 +27,11 @@
     <!-- Shown only when something needs attention (loading error, storage problem). -->
     <div id="notice" class="notice" role="alert" hidden></div>
 
+    <nav class="mode-tabs" aria-label="View">
+      <button type="button" class="mode-tab" data-mode="browse" aria-pressed="true">Browse &amp; rate</button>
+      <button type="button" class="mode-tab" data-mode="history" aria-pressed="false">Quick history</button>
+    </nav>
+
     <section class="panel" aria-labelledby="find-heading">
       <h2 id="find-heading">Find shows</h2>
       <form id="filters" class="filters" role="search">
@@ -47,14 +52,16 @@
           <select id="filter-medium"><option value="">All media</option></select>
         </div>
         <div class="field">
-          <label for="filter-rating">My rating</label>
-          <select id="filter-rating">
+          <label for="filter-history">My history</label>
+          <select id="filter-history">
             <option value="">Any</option>
-            <option value="rated">Rated</option>
-            <option value="unrated">Not rated</option>
-            <option value="yes">Yes – I liked it</option>
-            <option value="meh">Meh – It was okay</option>
-            <option value="no">No – I didn't like it</option>
+            <option value="unknown">Unknown</option>
+            <option value="seen">Seen</option>
+            <option value="not_seen">Not seen</option>
+            <option value="seen-unrated">Seen, no rating</option>
+            <option value="yes">Rated Yes – I liked it</option>
+            <option value="meh">Rated Meh – It was okay</option>
+            <option value="no">Rated No – I didn't like it</option>
           </select>
         </div>
         <div class="field field-button">
@@ -66,23 +73,33 @@
     <section aria-labelledby="shows-heading">
       <h2 id="shows-heading" class="visually-hidden">Shows</h2>
       <p id="summary" class="summary" aria-live="polite">Loading catalog…</p>
-      <p class="rating-key">
-        Ratings are optional:
-        <strong>Yes</strong> = I liked it,
-        <strong>Meh</strong> = It was okay,
-        <strong>No</strong> = I didn't like it.
+      <p class="rating-key" id="browse-help">
+        Mark whether you've <strong>seen</strong> a show. Ratings are optional:
+        <strong>Yes</strong> = I liked it, <strong>Meh</strong> = It was okay,
+        <strong>No</strong> = I didn't like it. <strong>Can't judge</strong> = seen,
+        but too long ago to rate. Rating a show marks it Seen.
       </p>
+      <div id="history-help" class="rating-key" hidden>
+        <p>
+          Tick the shows you recognize as <strong>Seen</strong>. No rating needed.
+          Use <strong>Not seen</strong> only for shows you're sure you haven't watched;
+          anything you leave alone stays <strong>Unknown</strong>.
+          Narrow the list by decade or search to keep scrolling short.
+        </p>
+        <button type="button" id="bulk-not-seen" class="button-secondary"></button>
+      </div>
       <div id="empty-state" class="empty-state" hidden>
         <p>No shows match these filters.</p>
         <button type="button" id="empty-clear" class="button-secondary">Clear filters</button>
       </div>
       <ul id="shows" class="show-grid" tabindex="-1"></ul>
+      <ul id="history" class="history-grid" tabindex="-1" hidden></ul>
     </section>
 
     <section class="panel" aria-labelledby="data-heading">
       <h2 id="data-heading">Your data</h2>
       <p>
-        Your ratings are saved only in this browser. They are never added to
+        Your viewing history and ratings are saved only in this browser. They are never added to
         <code>catalog.json</code> or to the repository. Export a backup to keep a copy
         or move it to another browser.
       </p>
@@ -96,6 +113,23 @@
       <div id="import-preview" class="import-preview" hidden aria-live="polite"></div>
     </section>
   </main>
+
+  <!-- Appears after each change so it can be undone. -->
+  <div id="undo-bar" class="undo-bar" hidden>
+    <p id="undo-message" aria-live="polite"></p>
+    <button type="button" id="undo-button">Undo</button>
+  </div>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <form method="dialog">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-text"></p>
+      <div class="data-actions">
+        <button value="confirm" id="confirm-yes"></button>
+        <button value="cancel" class="button-secondary" id="confirm-no"></button>
+      </div>
+    </form>
+  </dialog>
 
   <footer class="site-footer">
     <p>
