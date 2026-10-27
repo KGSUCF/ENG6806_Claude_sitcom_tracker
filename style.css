@@ -469,7 +469,7 @@ button:disabled {
   position: sticky;
   bottom: 0.75rem;
   z-index: 5;
-  max-width: 40rem;
+  width: min(40rem, calc(100% - 2rem));
   margin: 1rem auto 0;
   display: flex;
   align-items: center;
@@ -506,6 +506,136 @@ dialog::backdrop {
 dialog h2 {
   margin-top: 0;
   font-size: 1.25rem;
+}
+
+/* --- Recommendations ------------------------------------------------------ */
+
+.rec-options {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.check-option {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  font-weight: 500;
+}
+
+.check-option input {
+  width: 1.3rem;
+  height: 1.3rem;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  accent-color: var(--accent);
+}
+
+.rec-pool {
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin-bottom: 0;
+}
+
+.rec-evidence {
+  border: 2px solid var(--meh);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 0.25rem 1rem;
+  margin: 1rem 0;
+}
+
+.rec-evidence[hidden] {
+  display: none;
+}
+
+.rec-heading {
+  font-size: 1.3rem;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.rec-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+  gap: 1rem;
+  counter-reset: pick;
+}
+
+.rec-card .show-title::before {
+  counter-increment: pick;
+  content: counter(pick) ". ";
+  color: var(--accent);
+}
+
+.years {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.rec-status {
+  margin: 0.25rem 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.rec-status-unknown,
+.rec-status-changed {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.reasons {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 0.92rem;
+}
+
+.reasons li {
+  margin: 0.2rem 0;
+}
+
+.reason-plus strong { color: var(--yes); }
+.reason-minus strong { color: var(--no); }
+
+.eligibility {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0.5rem 0 0.25rem;
+}
+
+.score-details {
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.score-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.score-details ul {
+  columns: 2;
+  padding-left: 1.1rem;
+}
+
+.discovery summary {
+  cursor: pointer;
+}
+
+.discovery summary h3 {
+  display: inline;
+  font-size: 1.1rem;
+}
+
+.discovery-reason {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 /* --- Footer --------------------------------------------------------------- */

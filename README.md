@@ -8,7 +8,7 @@ A personal sitcom discovery tool, built as a static web page for GitHub Pages
 - answer a short taste survey; and
 - get recommendations for shows you might enjoy.
 
-**Status:** Stage 3 complete: viewing history (Seen / Not seen / Unknown) separate from optional ratings, with a quick checklist mode and undo.
+**Status:** Stage 4 complete: viewing history, optional ratings, and transparent recommendations.
 
 ## Ground rules
 
@@ -114,8 +114,10 @@ credit line. No blanket license is claimed for the dataset.
 index.html          page structure (repository root, required by GitHub Pages)
 style.css           styling (cozy TV theme, light and dark)
 js/profile.js       personal data: browser storage, backup export/import, validation
-js/app.js           page behavior: loading the catalog, search, filters, history, ratings, undo
-tests/              Node.js checks for development (not loaded by the page)
+js/recommend.js     recommendation scoring and explanations (see SCORING.md)
+js/app.js           page behavior: loading the catalog, search, filters, history, ratings, undo, recommendations
+SCORING.md          how recommendations are scored, and the method's limits
+tests/              Node.js checks, fixed example profiles, and the baseline results (not loaded by the page)
 catalog.json        working dataset (read-only)
 Claudesitcoms.json  reference snapshot (not loaded)
 .gitignore          keeps exported personal backups out of the repository
@@ -132,7 +134,7 @@ Later features are not started early.
    ratings, browser storage, versioned backup export/import. *(done)*
 3. **Viewing history**: Seen / Not seen / Unknown, separate from ratings, with a
    quick checklist mode and undo. *(done)*
-4. **Recommendations**: transparent, deterministic scoring with explanations.
+4. **Recommendations**: transparent, deterministic scoring with explanations. *(done)*
 5. **Taste survey**: about eight optional questions that adjust recommendations.
 6. **Inspect assumptions**: "What your ratings suggest", with More/Less/Ignore controls.
 7. **Revision through a branch and pull request**, based on real use of the page.
@@ -168,6 +170,21 @@ Rules the page follows:
 **Undo**: every change, including bulk changes, appears in a bar at the bottom of
 the screen with an **Undo** button. Up to 50 recent steps can be undone (until you
 reload the page).
+
+### Recommendations
+
+The **Recommendations** view suggests up to 10 eligible shows you've marked **Not seen**,
+each with the reasons behind its score. Seen shows are always excluded. Options:
+
+- *Also include shows I haven't marked yet*: adds Unknown shows, clearly labeled as
+  possibly already seen.
+- *Also include shows the catalog says still need reputation evidence*: widens the pool.
+
+From any pick you can mark it Seen or Not seen, or rate it. The list doesn't reshuffle
+under you: press **Refresh recommendations** to re-rank. The **Discovery list** shows up to
+50 eligible Unknown shows to sort into Seen or Not seen. With fewer than 3 ratings (or no
+Yes), the page explains that there isn't enough evidence yet instead of guessing.
+See [SCORING.md](SCORING.md) for the exact method.
 
 ### Search, filters, saving
 
@@ -227,6 +244,7 @@ To run the development checks (requires [Node.js](https://nodejs.org/)):
 
 ```
 node tests/profile-tests.js
+node tests/recommend-tests.js
 ```
 
 ## How development works

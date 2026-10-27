@@ -30,8 +30,10 @@
     <nav class="mode-tabs" aria-label="View">
       <button type="button" class="mode-tab" data-mode="browse" aria-pressed="true">Browse &amp; rate</button>
       <button type="button" class="mode-tab" data-mode="history" aria-pressed="false">Quick history</button>
+      <button type="button" class="mode-tab" data-mode="recommend" aria-pressed="false">Recommendations</button>
     </nav>
 
+    <div id="catalog-view">
     <section class="panel" aria-labelledby="find-heading">
       <h2 id="find-heading">Find shows</h2>
       <form id="filters" class="filters" role="search">
@@ -95,6 +97,46 @@
       <ul id="shows" class="show-grid" tabindex="-1"></ul>
       <ul id="history" class="history-grid" tabindex="-1" hidden></ul>
     </section>
+    </div>
+
+    <section id="recommend-view" aria-labelledby="rec-heading" hidden>
+      <div class="panel">
+        <h2 id="rec-heading">Recommendations</h2>
+        <p>
+          Picks come from your ratings: features of shows you liked count for a show,
+          features of shows you didn't like count against it, and Meh counts a little against.
+          Awards and reputation only decide which shows are <em>eligible</em>; they never raise a score.
+          <a href="SCORING.md">How scoring works</a>.
+        </p>
+        <div class="rec-options">
+          <label class="check-option">
+            <input type="checkbox" id="opt-include-unknown">
+            Also include shows I haven't marked yet (Unknown: I may or may not have seen them)
+          </label>
+          <label class="check-option">
+            <input type="checkbox" id="opt-include-candidates">
+            Also include shows the catalog says still need reputation evidence
+          </label>
+        </div>
+        <button type="button" id="rec-refresh">Refresh recommendations</button>
+        <p id="rec-pool" class="rec-pool"></p>
+      </div>
+
+      <div id="rec-evidence" class="rec-evidence" aria-live="polite"></div>
+
+      <h3 class="rec-heading">Top picks</h3>
+      <ol id="rec-picks" class="rec-list"></ol>
+
+      <details id="discovery" class="panel discovery">
+        <summary><h3>Discovery list: help sort shows you might already know</h3></summary>
+        <p>
+          Up to 50 eligible shows whose status is still <strong>Unknown</strong>, most likely matches first.
+          Tick the ones you've already seen and mark the rest Not seen: each answer makes the
+          top picks more accurate.
+        </p>
+        <ul id="rec-discovery" class="history-grid"></ul>
+      </details>
+    </section>
 
     <section class="panel" aria-labelledby="data-heading">
       <h2 id="data-heading">Your data</h2>
@@ -140,6 +182,7 @@
   </footer>
 
   <script src="js/profile.js"></script>
+  <script src="js/recommend.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

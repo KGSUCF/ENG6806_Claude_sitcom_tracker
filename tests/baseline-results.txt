@@ -1,0 +1,57 @@
+Scoring version: baseline-1
+
+== warm-family: Likes warm family sitcoms; dislikes crude and cynical shows.
+   evidence: 8 rated, 5 liked
+    1. The Cosby Show                       0.411  Audience: all ages, Content: clean, Tone: wholesome
+    2. Happy Days                           0.399  Audience: all ages, Content: clean, Tone: wholesome
+    3. The Partridge Family                 0.345  Audience: all ages, Content: clean, Tone: wholesome
+    4. Family Ties                          0.337  Audience: all ages, Content: clean, Theme: parenting
+    5. Brooklyn Bridge                      0.286  Audience: all ages, Content: clean, Humor: gentle
+    6. Evening Shade                        0.286  Audience: all ages, Content: clean, Humor: gentle
+    7. The Fresh Prince of Bel-Air          0.268  Audience: all ages, Setting: home, Theme: family
+    8. What's Happening!!                   0.268  Audience: all ages, Content: clean, Setting: home
+    9. Fresh Off the Boat                   0.266  Audience: all ages, Content: clean, Setting: home
+   10. Good Times                           0.265  Audience: all ages, Theme: parenting, Theme: family
+
+== cringe-satire: Likes awkward, cynical single-camera comedy; dislikes wholesome family shows.
+   evidence: 8 rated, 5 liked
+    1. Silicon Valley                       0.487  Audience: adult, Format: single cam, Humor: cringe
+    2. The Thick of It                      0.428  Audience: adult, Format: single cam, Tone: cynical
+    3. The Studio                           0.397  Audience: adult, Format: single cam, Humor: cringe
+    4. The Office (US)                      0.382  Audience: adult, Format: single cam, Humor: cringe
+    5. Parks and Recreation                 0.370  Audience: adult, Format: single cam, Content: mild
+    6. Extras                               0.369  Audience: adult, Format: single cam, Humor: cringe
+    7. The Larry Sanders Show               0.359  Audience: adult, Format: single cam, Humor: cringe
+    8. What We Do in the Shadows            0.348  Audience: adult, Format: single cam, Content: mature
+    9. Superstore                           0.347  Audience: adult, Format: single cam, Content: mild
+   10. Widow's Bay                          0.343  Audience: adult, Format: single cam, Content: mature
+
+== workplace-classics: Likes 1970s-80s workplace ensembles; mixed on family shows.
+   evidence: 7 rated, 5 liked
+    1. NewsRadio                            0.404  Humor: witty banter, Content: mild, Humor: deadpan
+    2. The IT Crowd                         0.377  Content: mild, Setting: big city, Audience: adult
+    3. Friends                              0.375  Humor: witty banter, Audience: adult, Humor: character driven
+    4. Black Books                          0.374  Content: mild, Setting: big city, Audience: adult
+    5. Brooklyn Nine-Nine                   0.373  Humor: witty banter, Content: mild, Audience: adult
+    6. Superstore                           0.370  Content: mild, Humor: deadpan, Setting: big city
+    7. Murphy Brown                         0.369  Humor: witty banter, Content: mild, Setting: big city
+    8. Living Single                        0.366  Humor: witty banter, Audience: adult, Theme: dating
+    9. Only Murders in the Building         0.357  Humor: witty banter, Content: mild, Humor: deadpan
+   10. Mad About You                        0.353  Humor: witty banter, Content: mild, Audience: adult
+
+== animation: Likes adult animation; dislikes multi-camera romance sitcoms.
+   evidence: 6 rated, 4 liked
+    1. Malcolm in the Middle                0.281  Content: mild, Audience: all ages, Humor: absurdist
+    2. The Royle Family                     0.278  Content: mild, Setting: home, Structure: episodic
+    3. Family Guy                           0.276  Medium: animated, Humor: absurdist, Setting: home
+    4. My Name Is Earl                      0.262  Content: mild, Humor: absurdist, Structure: episodic
+    5. Rick and Morty                       0.239  Medium: animated, Humor: absurdist, Setting: home
+    6. Arrested Development                 0.233  Content: mild, Humor: absurdist, Humor: wordplay
+    7. Black-ish                            0.216  Content: mild, Audience: all ages, Setting: home
+    8. Dinosaurs                            0.213  Audience: all ages, Setting: home, Structure: episodic
+    9. Police Squad!                        0.210  Audience: all ages, Humor: absurdist, Humor: wordplay
+   10. Ghosts (US)                          0.203  Content: mild, Audience: all ages, Humor: absurdist
+
+== sparse: Only one rating so far: should get an honest 'not enough evidence' message.
+   evidence: 1 rated, 1 liked (not enough for picks)
+   discovery list starts: 

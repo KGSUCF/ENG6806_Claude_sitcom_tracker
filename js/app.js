@@ -8,9 +8,10 @@ const UNDO_LIMIT = 50;
 const state = {
   catalog: null,        // the parsed catalog.json, plus a showsById lookup
   profile: null,        // your personal data
-  mode: "browse",       // "browse" (cards with ratings) or "history" (compact checklist)
+  mode: "browse",       // "browse" (cards), "history" (compact checklist), or "recommend"
   undoStack: [],        // recent changes: { label, before: [[id, entry or null], ...] }
   pendingImport: null,  // a validated import waiting for Replace/Merge/Cancel
+  rec: null,            // the last recommendation result (kept until you press Refresh)
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -92,10 +93,10 @@ function makeShowCard(show) {
 }
 
 // One compact line in the Quick history checklist.
-function makeHistoryRow(show) {
+function makeHistoryRow(show, idPrefix = "seen") {
   const status = getStatus(state.profile, show.id);
   const rating = getRating(state.profile, show.id);
-  const checkboxId = `seen-${show.id}`;
+  const checkboxId = `${idPrefix}-${show.id}`;
   return el("li", { className: `history-row status-${status}`, dataset: { id: show.id } },
     el("input", { type: "checkbox", id: checkboxId, checked: status === "seen", dataset: { action: "toggle-seen", id: show.id } }),
     el("label", { htmlFor: checkboxId },
@@ -111,6 +112,123 @@ function makeHistoryRow(show) {
       ariaLabel: `Not seen: ${show.title}`,
     }, "Not seen"),
   );
+}
+
+// --- Recommendations --------------------------------------------------------
+
+function ratingPhrase(rating) {
+  return { yes: "you liked", meh: "you rated Meh", no: "you didn't like" }[rating];
+}
+
+// "you liked Cheers, Taxi; you didn't like Soap" for the rated shows behind a feature.
+function examplesText(examples) {
+  const groups = [];
+  for (const rating of ["yes", "meh", "no"]) {
+    const titles = examples.filter((e) => e.rating === rating).map((e) => showTitle(e.id));
+    if (titles.length === 0) continue;
+    const shown = titles.slice(0, 3).join(", ") + (titles.length > 3 ? ` and ${titles.length - 3} more` : "");
+    groups.push(`${ratingPhrase(rating)} ${shown}`);
+  }
+  return groups.join("; ");
+}
+
+function statusNote(item) {
+  const now = getStatus(state.profile, item.show.id);
+  if (now !== item.status) {
+    const rating = getRating(state.profile, item.show.id);
+    const recorded = rating ? `Seen, rated ${RATINGS[rating].label}` : STATUSES[now].label;
+    return el("p", { className: "rec-status rec-status-changed" }, `Now recorded as ${recorded}. Press "Refresh recommendations" to update the list.`);
+  }
+  return item.status === "not_seen"
+    ? el("p", { className: "rec-status" }, "You marked this Not seen.")
+    : el("p", { className: "rec-status rec-status-unknown" }, "Unknown: you haven't said whether you've seen this, so it may not be new to you.");
+}
+
+function makePickCard(item) {
+  const { show } = item;
+  const why = explain(item, state.rec.prefs, state.catalog);
+  const reasons = el("ul", { className: "reasons" },
+    ...why.positives.map((f) => el("li", { className: "reason-plus", title: f.definition },
+      el("strong", {}, `+ ${f.label}`), ` (${examplesText(f.examples)})`)),
+    ...why.negatives.map((f) => el("li", { className: "reason-minus", title: f.definition },
+      el("strong", {}, `− ${f.label}`), ` counts against it (${examplesText(f.examples)})`)),
+  );
+  const total = item.contributions.reduce((sum, c) => sum + c.lean, 0);
+  const breakdown = el("details", { className: "score-details" },
+    el("summary", {}, `Score ${item.score.toFixed(3)}: how it was computed`),
+    el("p", {}, `Sum of feature leans ${total.toFixed(3)} ÷ ${item.featureCount} features = ${item.score.toFixed(3)}. ` +
+      `${why.unmatched} feature(s) appear in none of your rated shows and count as 0.`),
+    el("ul", {}, ...[...item.contributions].sort((a, b) => b.lean - a.lean).map((c) =>
+      el("li", {}, `${describeFeature(c.feature, state.catalog).label}: ${c.lean >= 0 ? "+" : ""}${c.lean.toFixed(3)}`))),
+  );
+  return el("li", { className: "rec-card show-card", dataset: { id: show.id, kind: "pick" } },
+    el("h4", { className: "show-title" }, show.title, el("span", { className: "years" }, ` ${formatYears(show)}`)),
+    statusNote(item),
+    el("p", { className: "group-label" }, "Why it's suggested"),
+    reasons,
+    el("p", { className: "eligibility" }, eligibilityReason(show)),
+    breakdown,
+    el("p", { className: "group-label" }, "Seen it?"),
+    makeStatusButtons(show),
+    el("p", { className: "group-label" }, "Did you enjoy it? (optional)"),
+    makeRatingButtons(show),
+  );
+}
+
+function makeDiscoveryRow(item) {
+  const row = makeHistoryRow(item.show, "discover");
+  row.dataset.kind = "discovery";
+  if (state.rec.evidence.enough) {
+    const top = explain(item, state.rec.prefs, state.catalog).positives[0];
+    if (top) row.querySelector("label").append(el("span", { className: "discovery-reason" }, `Shares ${top.label.toLowerCase()}`));
+  }
+  return row;
+}
+
+function computeRecommendations() {
+  state.rec = recommend(state.catalog, state.profile, {
+    includeUnknown: $("#opt-include-unknown").checked,
+    includeReviewCandidates: $("#opt-include-candidates").checked,
+  });
+}
+
+function renderRecommendations() {
+  const rec = state.rec;
+  const { counts, evidence } = rec;
+  const poolName = $("#opt-include-candidates").checked
+    ? "the catalog's documented selection plus the shows still needing reputation evidence"
+    : "the catalog's documented selection (shows with recorded award, recognition, or audience-score evidence)";
+  $("#rec-pool").textContent = `Eligible pool: ${counts.pool} shows from ${poolName}. ` +
+    `You've seen ${counts.seen} of them (always excluded), marked ${counts.notSeen} Not seen, and ${counts.unknown} are Unknown. ` +
+    "Every eligible show is scored.";
+
+  const messages = [];
+  if (!evidence.enough) {
+    messages.push(el("p", {}, el("strong", {}, "Not enough evidence for personal picks yet. "),
+      `You've rated ${evidence.rated} show(s), ${evidence.liked} with Yes. Picks need at least ${MIN_RATED} ratings, including at least ${MIN_LIKED} Yes. ` +
+      "Without that, any ranking would be guesswork."));
+    messages.push(el("p", {}, "Next step: rate a few shows you remember well, then come back. ",
+      el("button", { type: "button", className: "button-secondary", dataset: { gotoMode: "browse" } }, "Browse & rate"), " ",
+      el("button", { type: "button", className: "button-secondary", dataset: { gotoMode: "history" } }, "Quick history")));
+  } else {
+    if (evidence.rough) {
+      messages.push(el("p", {}, `Based on only ${evidence.rated} ratings, so treat these as rough suggestions. More ratings, including Meh and No, will sharpen them.`));
+    }
+    if (rec.picks.length < PICK_LIMIT && !$("#opt-include-unknown").checked) {
+      messages.push(el("p", {}, `Only ${rec.picks.length} eligible show(s) marked Not seen have a positive score. ` +
+        'Mark more shows Not seen (the discovery list below helps), or tick "Also include shows I haven\'t marked yet" above.'));
+    } else if (rec.picks.length === 0) {
+      messages.push(el("p", {}, "No unseen eligible show has a positive score from your ratings."));
+    }
+  }
+  $("#rec-evidence").replaceChildren(...messages);
+  $("#rec-evidence").hidden = messages.length === 0;
+
+  $("#rec-picks").replaceChildren(...rec.picks.map(makePickCard));
+  $("#rec-discovery").replaceChildren(...rec.discovery.map(makeDiscoveryRow));
+  $("#discovery").querySelector("summary h3").textContent =
+    `Discovery list: ${rec.discovery.length} show(s) to sort into Seen or Not seen${evidence.enough ? "" : " (not personalized yet, in premiere order)"}`;
+  if (!evidence.enough || rec.picks.length < PICK_LIMIT) $("#discovery").open = true;
 }
 
 // --- Filtering ------------------------------------------------------------
@@ -150,6 +268,10 @@ function visibleShows() {
 }
 
 function renderList() {
+  if (state.mode === "recommend") {
+    renderRecommendations();
+    return;
+  }
   const visible = visibleShows();
   const browse = state.mode === "browse";
   $("#shows").hidden = !browse;
@@ -164,15 +286,18 @@ function renderList() {
 
 // Re-draw just one show (card or row) and put keyboard focus back on the same control.
 function renderShow(id) {
-  const container = $(state.mode === "browse" ? "#shows" : "#history");
-  const old = container.querySelector(`[data-id="${CSS.escape(id)}"]`);
-  if (!old) return;
-  const focused = document.activeElement;
-  const focusKey = old.contains(focused) ? `[data-action="${focused.dataset.action}"]${focused.dataset.value ? `[data-value="${focused.dataset.value}"]` : ""}` : null;
   const show = state.catalog.showsById.get(id);
-  const fresh = state.mode === "browse" ? makeShowCard(show) : makeHistoryRow(show);
-  old.replaceWith(fresh);
-  if (focusKey) fresh.querySelector(focusKey)?.focus();
+  for (const old of document.querySelectorAll(`main [data-id="${CSS.escape(id)}"]:is(li)`)) {
+    const focused = document.activeElement;
+    const focusKey = old.contains(focused) ? `[data-action="${focused.dataset.action}"]${focused.dataset.value ? `[data-value="${focused.dataset.value}"]` : ""}` : null;
+    const item = state.rec && [...state.rec.picks, ...state.rec.discovery].find((i) => i.show.id === id);
+    let fresh;
+    if (old.dataset.kind === "pick") fresh = makePickCard(item);
+    else if (old.dataset.kind === "discovery") fresh = makeDiscoveryRow(item);
+    else fresh = old.classList.contains("history-row") ? makeHistoryRow(show) : makeShowCard(show);
+    old.replaceWith(fresh);
+    if (focusKey) fresh.querySelector(focusKey)?.focus();
+  }
 }
 
 function renderSummary(visible = visibleShows()) {
@@ -398,6 +523,9 @@ function setMode(mode) {
   for (const tab of document.querySelectorAll(".mode-tab")) {
     tab.setAttribute("aria-pressed", String(tab.dataset.mode === mode));
   }
+  $("#catalog-view").hidden = mode === "recommend";
+  $("#recommend-view").hidden = mode !== "recommend";
+  if (mode === "recommend") computeRecommendations();
   renderList();
 }
 
@@ -412,24 +540,30 @@ function wireEvents() {
     tab.addEventListener("click", () => setMode(tab.dataset.mode));
   }
 
-  $("#shows").addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-action]");
+  // One set of handlers serves the cards, checklist rows, and recommendations.
+  $("main").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action], button[data-goto-mode]");
     if (!button) return;
-    const { action, id, value } = button.dataset;
-    if (action === "status") changeStatus(id, value);
+    const { action, id, value, gotoMode } = button.dataset;
+    if (gotoMode) setMode(gotoMode);
+    else if (action === "status") changeStatus(id, value);
     else if (action === "rate") changeRating(id, value);
+    else if (action === "toggle-not-seen") changeStatus(id, getStatus(state.profile, id) === "not_seen" ? "unknown" : "not_seen");
   });
-
-  $("#history").addEventListener("change", (event) => {
+  $("main").addEventListener("change", (event) => {
     const box = event.target.closest('input[data-action="toggle-seen"]');
     if (box) changeStatus(box.dataset.id, box.checked ? "seen" : "unknown");
   });
-  $("#history").addEventListener("click", (event) => {
-    const button = event.target.closest('button[data-action="toggle-not-seen"]');
-    if (!button) return;
-    const id = button.dataset.id;
-    changeStatus(id, getStatus(state.profile, id) === "not_seen" ? "unknown" : "not_seen");
+  $("#rec-refresh").addEventListener("click", () => {
+    computeRecommendations();
+    renderRecommendations();
   });
+  for (const option of ["#opt-include-unknown", "#opt-include-candidates"]) {
+    $(option).addEventListener("change", () => {
+      computeRecommendations();
+      renderRecommendations();
+    });
+  }
   $("#bulk-not-seen").addEventListener("click", markVisibleUnknownNotSeen);
   $("#undo-button").addEventListener("click", undo);
 
