@@ -452,9 +452,29 @@ function matchesFilters(show, filters) {
   }
 }
 
+// Premiere date when the catalog has one, otherwise the start year
+// ("1995" sorts before "1995-03-01", so it counts as the start of that year).
+function premiereKey(show) {
+  return show.premiere_date ?? String(show.years.start ?? "");
+}
+
+// Title for alphabetical order, without a leading "The", "A", or "An".
+function sortTitle(show) {
+  return show.title.replace(/^(the|a|an)\s+/i, "");
+}
+
+const SORTERS = {
+  newest: (a, b) => premiereKey(b).localeCompare(premiereKey(a)) || a.title.localeCompare(b.title, "en"),
+  oldest: (a, b) => premiereKey(a).localeCompare(premiereKey(b)) || a.title.localeCompare(b.title, "en"),
+  title: (a, b) => sortTitle(a).localeCompare(sortTitle(b), "en", { sensitivity: "base", numeric: true }) || a.id.localeCompare(b.id),
+};
+
+// Shows matching the filters, in the chosen order. Sorting a copy leaves the
+// catalog's own order untouched.
 function visibleShows() {
   const filters = currentFilters();
-  return state.catalog.shows.filter((show) => matchesFilters(show, filters));
+  const sorter = SORTERS[$("#sort-order").value] ?? SORTERS.newest;
+  return state.catalog.shows.filter((show) => matchesFilters(show, filters)).sort(sorter);
 }
 
 function renderList() {
@@ -735,6 +755,7 @@ function wireEvents() {
   // A reset changes the fields after this event fires, so re-render on the next tick.
   $("#filters").addEventListener("reset", () => setTimeout(renderList));
   $("#empty-clear").addEventListener("click", () => $("#filters").reset());
+  $("#sort-order").addEventListener("change", renderList);
 
   for (const tab of document.querySelectorAll(".mode-tab")) {
     tab.addEventListener("click", () => setMode(tab.dataset.mode));
