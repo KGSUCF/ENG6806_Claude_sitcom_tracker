@@ -206,6 +206,9 @@ were added or dropped. **Clear all adjustments** resets only these choices.
 
 ### Search, filters, saving
 
+- **Sort**: *Newest first* (default), *Oldest first* (handy for entering decades of
+  history), or *Title A–Z* (ignores a leading "The", "A", or "An"). Clear filters keeps
+  your chosen order.
 - **Search** matches show titles and recorded alternate titles.
 - **Filters**: premiere decade (`derived.premiere_decade`), kind (sitcom, dramedy,
   sketch), medium (live-action, animated, puppet), and your history (Unknown, Seen,

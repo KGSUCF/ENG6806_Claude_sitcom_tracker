@@ -75,7 +75,18 @@
 
     <section aria-labelledby="shows-heading">
       <h2 id="shows-heading" class="visually-hidden">Shows</h2>
-      <p id="summary" class="summary" aria-live="polite">Loading catalog…</p>
+      <div class="list-bar">
+        <p id="summary" class="summary" aria-live="polite">Loading catalog…</p>
+        <!-- Outside the filter form, so "Clear filters" keeps your chosen order. -->
+        <div class="sort-field">
+          <label for="sort-order">Sort</label>
+          <select id="sort-order">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="title">Title A–Z</option>
+          </select>
+        </div>
+      </div>
       <p class="rating-key" id="browse-help">
         Mark whether you've <strong>seen</strong> a show. Ratings are optional:
         <strong>Yes</strong> = I liked it, <strong>Meh</strong> = It was okay,

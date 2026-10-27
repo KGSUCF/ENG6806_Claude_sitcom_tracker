@@ -231,9 +231,29 @@ button:disabled {
 
 /* --- Messages ----------------------------------------------------------- */
 
+.list-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-top: 1.25rem;
+}
+
 .summary {
   font-weight: 600;
-  margin: 1.25rem 0 0.25rem;
+  margin: 0 0 0.25rem;
+  flex: 1 1 20rem;
+}
+
+.sort-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sort-field select {
+  width: auto;
 }
 
 .rating-key {
