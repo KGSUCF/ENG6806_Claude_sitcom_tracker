@@ -1,0 +1,41 @@
+body {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  max-width: 50rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+  color: #222;
+  background: #fafafa;
+}
+
+header {
+  border-bottom: 2px solid #ccc;
+  margin-bottom: 1rem;
+}
+
+#show-list {
+  list-style: none;
+  padding: 0;
+}
+
+#show-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.years {
+  color: #666;
+  margin-left: 0.5rem;
+}
+
+.error {
+  color: #a00;
+}
+
+footer {
+  margin-top: 2rem;
+  padding: 1rem 0;
+  border-top: 1px solid #ccc;
+  font-size: 0.85rem;
+  color: #555;
+}

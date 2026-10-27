@@ -8,7 +8,7 @@ A personal sitcom discovery tool, built as a static web page for GitHub Pages
 - answer a short taste survey; and
 - get recommendations for shows you might enjoy.
 
-**Status:** Stage 1 (planning). The web page has not been built yet.
+**Status:** Stage 2 (page skeleton). The page loads the catalog and lists every show.
 
 ## Ground rules
 
@@ -152,5 +152,4 @@ Each stage is a small, separate set of commits. Later features are not started e
 
 ## Existing code
 
-There is no existing application code. The repository contains only the two JSON
-files, which are kept as they are.
+The original repository had no application code, only the two JSON files, which are kept as they are. Stage 2 added `index.html`, `style.css`, and `app.js`.

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sitcom Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Sitcom Tracker</h1>
+    <p>A personal sitcom discovery tool.</p>
+  </header>
+
+  <main>
+    <!-- app.js fills these in once catalog.json has loaded. -->
+    <p id="status">Loading catalog…</p>
+    <ul id="show-list"></ul>
+  </main>
+
+  <footer>
+    <p>
+      Show data: <code>catalog.json</code>, a curated research catalog. Some facts are
+      imported and not independently verified. Includes data from
+      <a href="https://www.tvmaze.com/api">TVmaze</a> (CC BY-SA).
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
