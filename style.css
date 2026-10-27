@@ -638,6 +638,70 @@ dialog h2 {
   color: var(--muted);
 }
 
+/* --- Taste survey ------------------------------------------------------------ */
+
+.survey-explainer summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.survey-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 1rem;
+}
+
+.survey-question {
+  margin: 0;
+}
+
+.survey-question legend {
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0 0.25rem;
+}
+
+.survey-help {
+  font-size: 0.88rem;
+  color: var(--muted);
+  margin: 0.25rem 0 0.5rem;
+}
+
+.survey-options {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.survey-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.survey-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--bg);
+  font-weight: 700;
+}
+
+.survey-option input {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--accent);
+}
+
+.survey-clear {
+  font-size: 0.85rem;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.8rem;
+}
+
 /* --- Footer --------------------------------------------------------------- */
 
 .site-footer {

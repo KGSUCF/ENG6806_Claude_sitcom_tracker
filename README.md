@@ -8,7 +8,7 @@ A personal sitcom discovery tool, built as a static web page for GitHub Pages
 - answer a short taste survey; and
 - get recommendations for shows you might enjoy.
 
-**Status:** Stage 4 complete: viewing history, optional ratings, and transparent recommendations.
+**Status:** Stage 5 complete: viewing history, optional ratings, a short taste survey, and transparent recommendations.
 
 ## Ground rules
 
@@ -114,8 +114,9 @@ credit line. No blanket license is claimed for the dataset.
 index.html          page structure (repository root, required by GitHub Pages)
 style.css           styling (cozy TV theme, light and dark)
 js/profile.js       personal data: browser storage, backup export/import, validation
+js/survey.js        the eight optional taste-survey questions and the tags they nudge
 js/recommend.js     recommendation scoring and explanations (see SCORING.md)
-js/app.js           page behavior: loading the catalog, search, filters, history, ratings, undo, recommendations
+js/app.js           page behavior: catalog, search, filters, history, ratings, undo, survey, recommendations
 SCORING.md          how recommendations are scored, and the method's limits
 tests/              Node.js checks, fixed example profiles, and the baseline results (not loaded by the page)
 catalog.json        working dataset (read-only)
@@ -135,7 +136,7 @@ Later features are not started early.
 3. **Viewing history**: Seen / Not seen / Unknown, separate from ratings, with a
    quick checklist mode and undo. *(done)*
 4. **Recommendations**: transparent, deterministic scoring with explanations. *(done)*
-5. **Taste survey**: about eight optional questions that adjust recommendations.
+5. **Taste survey**: about eight optional questions that adjust recommendations. *(done)*
 6. **Inspect assumptions**: "What your ratings suggest", with More/Less/Ignore controls.
 7. **Revision through a branch and pull request**, based on real use of the page.
 
@@ -171,6 +172,14 @@ Rules the page follows:
 the screen with an **Undo** button. Up to 50 recent steps can be undone (until you
 reload the page).
 
+### Taste survey
+
+The **Taste survey** view asks eight optional questions (animation, filming style,
+setting, warmth, cringe humor, dark humor, absurd humor, adult content). Every
+question has a neutral answer, and any question can be skipped or cleared. Answers
+save as you go. **Reset survey answers** clears only the survey; your viewing history
+and ratings are untouched. A survey answer counts for less than a single rating.
+
 ### Recommendations
 
 The **Recommendations** view suggests up to 10 eligible shows you've marked **Not seen**,
@@ -205,26 +214,32 @@ See [SCORING.md](SCORING.md) for the exact method.
 
 ### Backup format
 
-Version 2 (current):
+Version 3 (current):
 
 ```json
 {
   "format": "sitcom-tracker-profile",
-  "version": 2,
+  "version": 3,
   "exported_at": "2026-10-27T12:00:00.000Z",
   "catalog_version": "3.0.0",
   "shows": {
     "cheers-1982": { "status": "seen", "rating": "yes" },
     "taxi-1978":   { "status": "seen" },
     "soap-1977":   { "status": "not_seen" }
-  }
+  },
+  "survey": { "animation": "more", "camera": "neutral" }
 }
 ```
 
-A show with no entry is Unknown. Version 1 backups (`"ratings": { "cheers-1982": "yes" }`)
-still import: each rated show becomes Seen with that rating. Data saved in the browser
-by version 1 is upgraded automatically the first time the page loads, and the original
-is kept under the storage key `sitcomTracker.profile.v1-backup`.
+A show with no entry is Unknown; an unanswered question has no `survey` entry.
+Older backups still import:
+- Version 2 (no `survey`): shows import as they are, with no survey answers.
+- Version 1 (`"ratings": { "cheers-1982": "yes" }`): each rated show becomes Seen with
+  that rating.
+
+Data saved in the browser by an older version is upgraded automatically the first time
+the page loads, and the original is kept under the storage key
+`sitcomTracker.profile.v1-backup` or `sitcomTracker.profile.v2-backup`.
 
 ## Previewing locally
 
@@ -245,6 +260,7 @@ To run the development checks (requires [Node.js](https://nodejs.org/)):
 ```
 node tests/profile-tests.js
 node tests/recommend-tests.js
+node tests/compare-with-baseline.js
 ```
 
 ## How development works

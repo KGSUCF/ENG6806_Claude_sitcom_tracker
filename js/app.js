@@ -8,7 +8,7 @@ const UNDO_LIMIT = 50;
 const state = {
   catalog: null,        // the parsed catalog.json, plus a showsById lookup
   profile: null,        // your personal data
-  mode: "browse",       // "browse" (cards), "history" (compact checklist), or "recommend"
+  mode: "browse",       // "browse" (cards), "history" (checklist), "survey", or "recommend"
   undoStack: [],        // recent changes: { label, before: [[id, entry or null], ...] }
   pendingImport: null,  // a validated import waiting for Replace/Merge/Cancel
   rec: null,            // the last recommendation result (kept until you press Refresh)
@@ -120,8 +120,9 @@ function ratingPhrase(rating) {
   return { yes: "you liked", meh: "you rated Meh", no: "you didn't like" }[rating];
 }
 
-// "you liked Cheers, Taxi; you didn't like Soap" for the rated shows behind a feature.
-function examplesText(examples) {
+// "you liked Cheers, Taxi; you didn't like Soap; survey: “I love squirming”"
+// for the ratings and survey answers behind a feature.
+function examplesText(examples, answers = []) {
   const groups = [];
   for (const rating of ["yes", "meh", "no"]) {
     const titles = examples.filter((e) => e.rating === rating).map((e) => showTitle(e.id));
@@ -129,6 +130,7 @@ function examplesText(examples) {
     const shown = titles.slice(0, 3).join(", ") + (titles.length > 3 ? ` and ${titles.length - 3} more` : "");
     groups.push(`${ratingPhrase(rating)} ${shown}`);
   }
+  for (const answer of answers) groups.push(`your survey answer “${answer.label}”`);
   return groups.join("; ");
 }
 
@@ -149,17 +151,20 @@ function makePickCard(item) {
   const why = explain(item, state.rec.prefs, state.catalog);
   const reasons = el("ul", { className: "reasons" },
     ...why.positives.map((f) => el("li", { className: "reason-plus", title: f.definition },
-      el("strong", {}, `+ ${f.label}`), ` (${examplesText(f.examples)})`)),
+      el("strong", {}, `+ ${f.label}`), ` (${examplesText(f.examples, f.answers)})`)),
     ...why.negatives.map((f) => el("li", { className: "reason-minus", title: f.definition },
-      el("strong", {}, `− ${f.label}`), ` counts against it (${examplesText(f.examples)})`)),
+      el("strong", {}, `− ${f.label}`), ` counts against it (${examplesText(f.examples, f.answers)})`)),
   );
   const total = item.contributions.reduce((sum, c) => sum + c.lean, 0);
   const breakdown = el("details", { className: "score-details" },
     el("summary", {}, `Score ${item.score.toFixed(3)}: how it was computed`),
     el("p", {}, `Sum of feature leans ${total.toFixed(3)} ÷ ${item.featureCount} features = ${item.score.toFixed(3)}. ` +
-      `${why.unmatched} feature(s) appear in none of your rated shows and count as 0.`),
-    el("ul", {}, ...[...item.contributions].sort((a, b) => b.lean - a.lean).map((c) =>
-      el("li", {}, `${describeFeature(c.feature, state.catalog).label}: ${c.lean >= 0 ? "+" : ""}${c.lean.toFixed(3)}`))),
+      `${why.unmatched} feature(s) appear in none of your rated shows or survey answers and count as 0.`),
+    el("ul", {}, ...[...item.contributions].sort((a, b) => b.lean - a.lean).map((c) => {
+      const pref = state.rec.prefs.get(c.feature);
+      const parts = pref?.surveyLean ? ` (ratings ${signed(pref.ratingLean)}, survey ${signed(pref.surveyLean)})` : "";
+      return el("li", {}, `${describeFeature(c.feature, state.catalog).label}: ${signed(c.lean)}${parts}`);
+    })),
   );
   return el("li", { className: "rec-card show-card", dataset: { id: show.id, kind: "pick" } },
     el("h4", { className: "show-title" }, show.title, el("span", { className: "years" }, ` ${formatYears(show)}`)),
@@ -173,6 +178,10 @@ function makePickCard(item) {
     el("p", { className: "group-label" }, "Did you enjoy it? (optional)"),
     makeRatingButtons(show),
   );
+}
+
+function signed(number) {
+  return `${number >= 0 ? "+" : ""}${number.toFixed(3)}`;
 }
 
 function makeDiscoveryRow(item) {
@@ -202,16 +211,26 @@ function renderRecommendations() {
     `You've seen ${counts.seen} of them (always excluded), marked ${counts.notSeen} Not seen, and ${counts.unknown} are Unknown. ` +
     "Every eligible show is scored.";
 
+  const answered = Object.keys(state.profile.survey).length;
+  $("#rec-survey").textContent = answered === 0
+    ? "Taste survey: not answered (optional)."
+    : `Taste survey: ${answered} of ${SURVEY_QUESTIONS.length} questions answered, ${evidence.surveyPreferences} with a preference. Survey answers count for less than ratings.`;
+
   const messages = [];
   if (!evidence.enough) {
     messages.push(el("p", {}, el("strong", {}, "Not enough evidence for personal picks yet. "),
-      `You've rated ${evidence.rated} show(s), ${evidence.liked} with Yes. Picks need at least ${MIN_RATED} ratings, including at least ${MIN_LIKED} Yes. ` +
+      `You've rated ${evidence.rated} show(s), ${evidence.liked} with Yes, and given ${evidence.surveyPreferences} survey preference(s). ` +
+      `Picks need at least ${MIN_RATED} ratings including at least ${MIN_LIKED} Yes, or at least ${MIN_SURVEY_PREFERENCES} survey answers that express a preference. ` +
       "Without that, any ranking would be guesswork."));
-    messages.push(el("p", {}, "Next step: rate a few shows you remember well, then come back. ",
+    messages.push(el("p", {}, "Next step: rate a few shows you remember well, or answer the taste survey, then come back. ",
       el("button", { type: "button", className: "button-secondary", dataset: { gotoMode: "browse" } }, "Browse & rate"), " ",
-      el("button", { type: "button", className: "button-secondary", dataset: { gotoMode: "history" } }, "Quick history")));
+      el("button", { type: "button", className: "button-secondary", dataset: { gotoMode: "history" } }, "Quick history"), " ",
+      el("button", { type: "button", className: "button-secondary", dataset: { gotoMode: "survey" } }, "Taste survey")));
   } else {
-    if (evidence.rough) {
+    if (evidence.surveyOnly) {
+      messages.push(el("p", {}, el("strong", {}, "These picks rest mainly on your survey answers. "),
+        `You've rated only ${evidence.rated} show(s), so the ranking comes from broad preferences. Rating a few shows will make it more personal.`));
+    } else if (evidence.rough) {
       messages.push(el("p", {}, `Based on only ${evidence.rated} ratings, so treat these as rough suggestions. More ratings, including Meh and No, will sharpen them.`));
     }
     if (rec.picks.length < PICK_LIMIT && !$("#opt-include-unknown").checked) {
@@ -229,6 +248,56 @@ function renderRecommendations() {
   $("#discovery").querySelector("summary h3").textContent =
     `Discovery list: ${rec.discovery.length} show(s) to sort into Seen or Not seen${evidence.enough ? "" : " (not personalized yet, in premiere order)"}`;
   if (!evidence.enough || rec.picks.length < PICK_LIMIT) $("#discovery").open = true;
+}
+
+// --- Taste survey -------------------------------------------------------------
+
+function renderSurvey() {
+  const answers = state.profile.survey;
+  const fieldsets = SURVEY_QUESTIONS.map((q, index) => el("fieldset", { className: "panel survey-question" },
+    el("legend", {}, `${index + 1}. ${q.text}`),
+    q.help ? el("p", { className: "survey-help" }, q.help) : null,
+    el("div", { className: "survey-options" }, ...q.options.map((o) => el("label", { className: "survey-option" },
+      el("input", { type: "radio", name: `survey-${q.id}`, value: o.value, checked: answers[q.id] === o.value, dataset: { question: q.id } }),
+      ` ${o.label}`))),
+    el("button", { type: "button", className: "button-secondary survey-clear", dataset: { clearQuestion: q.id }, disabled: !(q.id in answers) }, "Skip / clear this answer"),
+  ));
+  $("#survey-form").replaceChildren(...fieldsets);
+  renderSurveyProgress();
+}
+
+function renderSurveyProgress() {
+  const answered = Object.keys(state.profile.survey).length;
+  const preferences = countSurveyPreferences(state.profile.survey);
+  $("#survey-progress").textContent = answered === 0
+    ? `No answers yet. All ${SURVEY_QUESTIONS.length} questions are optional.`
+    : `${answered} of ${SURVEY_QUESTIONS.length} answered (${preferences} with a preference, ${answered - preferences} neutral).`;
+  $("#survey-reset").disabled = answered === 0;
+}
+
+function setSurveyAnswer(questionId, value) {
+  if (value === null) delete state.profile.survey[questionId];
+  else state.profile.survey[questionId] = value;
+  persist();
+  const clear = document.querySelector(`[data-clear-question="${questionId}"]`);
+  if (clear) clear.disabled = value === null;
+  if (value === null) {
+    for (const radio of document.querySelectorAll(`input[name="survey-${questionId}"]`)) radio.checked = false;
+  }
+  renderSurveyProgress();
+}
+
+async function resetSurvey() {
+  const ok = await confirmChoice({
+    title: "Reset all survey answers?",
+    text: "Your survey answers will be cleared. Your viewing history and ratings stay exactly as they are.",
+    confirm: "Reset survey answers",
+    cancel: "Keep my answers",
+  });
+  if (!ok) return;
+  state.profile.survey = {};
+  persist();
+  renderSurvey();
 }
 
 // --- Filtering ------------------------------------------------------------
@@ -268,6 +337,10 @@ function visibleShows() {
 }
 
 function renderList() {
+  if (state.mode === "survey") {
+    renderSurvey();
+    return;
+  }
   if (state.mode === "recommend") {
     renderRecommendations();
     return;
@@ -485,12 +558,13 @@ async function handleImportFile(file) {
     .filter(([id, entry]) => id in state.profile.shows && JSON.stringify(state.profile.shows[id]) !== JSON.stringify(entry)).length;
 
   preview.replaceChildren(
-    el("p", {}, el("strong", {}, `"${file.name}" looks good: ${incoming.seen} Seen (${incoming.rated} rated), ${incoming.not_seen} Not seen.`)),
-    result.warnings.length ? el("ul", {}, ...result.warnings.map((w) => el("li", {}, w))) : null,
+    el("p", {}, el("strong", {}, `"${file.name}" looks good: ${incoming.seen} Seen (${incoming.rated} rated), ${incoming.not_seen} Not seen, ` +
+      `${Object.keys(result.profile.survey).length} survey answer(s).`)),
+    el("ul", { hidden: result.warnings.length === 0 }, ...result.warnings.map((w) => el("li", {}, w))),
     el("p", {}, "Choose how to use it. Nothing changes until you pick one:"),
     el("ul", {},
-      el("li", {}, el("strong", {}, "Replace: "), `your current ${currentTotal} recorded show(s) are removed and the ${incomingTotal} from the file are used instead.`),
-      el("li", {}, el("strong", {}, "Merge: "), `shows from the file are added to yours. Where both record the same show differently (${conflicts} show(s)), the file's entry wins. Your other shows stay.`),
+      el("li", {}, el("strong", {}, "Replace: "), `your current ${currentTotal} recorded show(s) and your survey answers are removed, and the ${incomingTotal} show(s) and survey answers from the file are used instead.`),
+      el("li", {}, el("strong", {}, "Merge: "), `shows and survey answers from the file are added to yours. Where both record the same show differently (${conflicts} show(s)), or answer the same question, the file wins. Everything else of yours stays.`),
     ),
     el("div", { className: "data-actions" },
       el("button", { type: "button", dataset: { importMode: "replace" } }, "Replace my data"),
@@ -523,8 +597,13 @@ function setMode(mode) {
   for (const tab of document.querySelectorAll(".mode-tab")) {
     tab.setAttribute("aria-pressed", String(tab.dataset.mode === mode));
   }
-  $("#catalog-view").hidden = mode === "recommend";
+  $("#catalog-view").hidden = mode === "recommend" || mode === "survey";
   $("#recommend-view").hidden = mode !== "recommend";
+  $("#survey-view").hidden = mode !== "survey";
+  if (mode === "survey") {
+    renderSurvey();
+    return;
+  }
   if (mode === "recommend") computeRecommendations();
   renderList();
 }
@@ -554,6 +633,16 @@ function wireEvents() {
     const box = event.target.closest('input[data-action="toggle-seen"]');
     if (box) changeStatus(box.dataset.id, box.checked ? "seen" : "unknown");
   });
+  $("#survey-form").addEventListener("change", (event) => {
+    const radio = event.target.closest("input[data-question]");
+    if (radio) setSurveyAnswer(radio.dataset.question, radio.value);
+  });
+  $("#survey-form").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-clear-question]");
+    if (button) setSurveyAnswer(button.dataset.clearQuestion, null);
+  });
+  $("#survey-form").addEventListener("submit", (event) => event.preventDefault());
+  $("#survey-reset").addEventListener("click", resetSurvey);
   $("#rec-refresh").addEventListener("click", () => {
     computeRecommendations();
     renderRecommendations();

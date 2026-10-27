@@ -2,16 +2,20 @@
 // The profile lives in the browser's localStorage and can be exported to a
 // JSON backup file. Nothing here ever writes to the catalog.
 //
-// Version 2 data model. Each show you have recorded gets one entry:
+// Version 3 data model. Each show you have recorded gets one entry:
 //   shows: { "cheers-1982": { status: "seen", rating: "yes" },
 //            "taxi-1978":   { status: "seen" },             // seen, no rating
 //            "soap-1977":   { status: "not_seen" } }
+//   survey: { "animation": "more", "camera": "neutral" }    // optional answers
 // A show with no entry has status "unknown". A rating always means "seen".
-// Version 1 (ratings only) is still read and converted automatically.
+// Versions 1 (ratings only) and 2 (no survey) are still read and converted.
 
 const PROFILE_FORMAT = "sitcom-tracker-profile";
-const PROFILE_VERSION = 2;
-const SUPPORTED_VERSIONS = [1, 2];
+const PROFILE_VERSION = 3;
+const SUPPORTED_VERSIONS = [1, 2, 3];
+
+// The survey questions come from survey.js (a <script> in the browser, require in Node).
+const SURVEY = typeof SURVEY_QUESTIONS !== "undefined" ? { SURVEY_QUESTIONS, surveyOption } : require("./survey.js");
 const STORAGE_KEY = "sitcomTracker.profile";
 
 const STATUSES = {
@@ -28,7 +32,7 @@ const RATINGS = {
 };
 
 function emptyProfile() {
-  return { format: PROFILE_FORMAT, version: PROFILE_VERSION, shows: {} };
+  return { format: PROFILE_FORMAT, version: PROFILE_VERSION, shows: {}, survey: {} };
 }
 
 function getStatus(profile, id) {
@@ -118,7 +122,19 @@ function validateProfileData(data, catalog) {
     setEntry(profile, id, status, rating);
   }
 
+  // Survey answers exist from version 3. Unknown questions or answers are skipped.
+  let skippedAnswers = 0;
+  if (data.version >= 3 && data.survey !== undefined) {
+    if (!isPlainObject(data.survey)) return { ok: false, errors: ["The backup's \"survey\" is not an object."], warnings };
+    for (const [questionId, value] of Object.entries(data.survey)) {
+      if (SURVEY.surveyOption(questionId, value)) profile.survey[questionId] = value;
+      else skippedAnswers++;
+    }
+  }
+
   if (data.version === 1) warnings.push("This is a version 1 backup (ratings only). Each rated show will be recorded as Seen with its rating.");
+  if (data.version === 2) warnings.push("This is a version 2 backup, from before the taste survey. It has no survey answers.");
+  if (skippedAnswers > 0) warnings.push(`${skippedAnswers} survey answer(s) didn't match the current questions and will be skipped.`);
   if (renamed > 0) warnings.push(`${renamed} former show ID(s) were translated to current IDs.`);
   if (unknownIds.length > 0) warnings.push(`${unknownIds.length} show ID(s) are not in this catalog and will be skipped: ${listSome(unknownIds)}`);
   if (invalid.length > 0) warnings.push(`${invalid.length} entr${invalid.length === 1 ? "y has" : "ies have"} an unrecognized or contradictory value and will be skipped: ${listSome(invalid)}`);
@@ -130,10 +146,12 @@ function listSome(items) {
   return items.slice(0, 5).join(", ") + (items.length > 5 ? ", …" : "");
 }
 
-// Combine two profiles. Where both have an entry for a show, `incoming` wins.
+// Combine two profiles. Where both have an entry for a show or an answer to a
+// survey question, `incoming` wins.
 function mergeProfiles(current, incoming) {
   const merged = emptyProfile();
   Object.assign(merged.shows, structuredClone(current.shows), structuredClone(incoming.shows));
+  Object.assign(merged.survey, current.survey, incoming.survey);
   return merged;
 }
 
@@ -208,6 +226,7 @@ function makeBackup(profile, catalog) {
     exported_at: new Date().toISOString(),
     catalog_version: catalog.meta.version,
     shows: structuredClone(profile.shows),
+    survey: { ...profile.survey },
   };
 }
 

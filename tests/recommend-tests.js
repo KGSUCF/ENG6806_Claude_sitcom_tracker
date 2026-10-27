@@ -1,7 +1,8 @@
 // Checks and a readable report for the recommendation scoring.
 // Run from the repository folder with:
-//   node tests/recommend-tests.js            (checks + report)
-//   node tests/recommend-tests.js --report   (report only, e.g. to save a baseline)
+//   node tests/recommend-tests.js                       (checks + report)
+//   node tests/recommend-tests.js --report              (current method, report only)
+//   node tests/recommend-tests.js --report --baseline   (baseline-1 method, report only)
 // These tests are for development only; the web page does not load them.
 
 const assert = require("node:assert/strict");
@@ -15,9 +16,10 @@ const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "catalog.j
 catalog.showsById = new Map(catalog.shows.map((show) => [show.id, show]));
 
 // Turn an example into a real profile: rated and seen shows as given,
-// every other show Not seen.
+// every other show Not seen, plus its survey answers.
 function buildProfile(example) {
   const profile = P.emptyProfile();
+  profile.survey = { ...example.survey };
   for (const show of catalog.shows) P.setEntry(profile, show.id, "not_seen");
   for (const id of example.seen) P.setEntry(profile, id, "seen");
   for (const [id, rating] of Object.entries(example.ratings)) P.setEntry(profile, id, "seen", rating);
@@ -29,6 +31,7 @@ function shareWith(picks, feature) {
 }
 
 const results = Object.fromEntries(examples.map((ex) => [ex.name, R.recommend(catalog, buildProfile(ex))]));
+const baseline = Object.fromEntries(examples.map((ex) => [ex.name, R.recommend(catalog, buildProfile(ex), { useSurvey: false })]));
 
 function runChecks() {
   let passed = 0;
@@ -78,11 +81,39 @@ function runChecks() {
     }
   });
 
-  test("a single rating is not enough evidence", () => {
-    const r = results.sparse;
+  test("a single rating is not enough evidence on its own", () => {
+    const r = baseline.sparse;
     assert.equal(r.evidence.enough, false);
     assert.equal(r.picks.length, 0);
     assert.ok(r.discovery.length > 0 || r.counts.unknown === 0);
+  });
+
+  test("three non-neutral survey answers can stand in, and are labeled survey-only", () => {
+    const r = results.sparse;
+    assert.equal(r.evidence.enough, true);
+    assert.equal(r.evidence.surveyOnly, true);
+    assert.ok(r.picks.length > 0);
+  });
+
+  test("neutral answers change nothing", () => {
+    const ex = examples[2];
+    const neutral = buildProfile(ex);
+    neutral.survey = Object.fromEntries(Object.keys(ex.survey).map((id) => [id, "neutral"]));
+    const a = R.recommend(catalog, neutral).picks.map((p) => [p.show.id, p.score]);
+    const b = baseline[ex.name].picks.map((p) => [p.show.id, p.score]);
+    assert.deepEqual(a, b);
+  });
+
+  test("one rated show outweighs one survey answer on the same feature", () => {
+    const p = P.emptyProfile();
+    P.setEntry(p, "the-simpsons-1989", "seen", "no"); // animated
+    p.survey = { animation: "more" };
+    assert.ok(R.learnPreferences(p, catalog).get("medium:animated").lean < 0);
+  });
+
+  test("with survey answers ignored, results match the saved baseline", () => {
+    const saved = fs.readFileSync(path.join(__dirname, "baseline-results.txt"), "utf8");
+    assert.equal(reportText(baseline, "baseline-1"), saved);
   });
 
   test("warm-family picks lean warmer and less cynical than cringe-satire picks", () => {
@@ -132,21 +163,39 @@ function runChecks() {
   console.log(`\n${passed} recommendation tests passed.\n`);
 }
 
-function printReport() {
-  console.log(`Scoring version: ${R.SCORING_VERSION}`);
+// The report text for one set of results. The baseline-1 report keeps the exact
+// layout of tests/baseline-results.txt so the two can be compared.
+function reportText(set, version) {
+  const lines = [`Scoring version: ${version}`];
   for (const ex of examples) {
-    const r = results[ex.name];
-    console.log(`\n== ${ex.name}: ${ex.description}`);
-    console.log(`   evidence: ${r.evidence.rated} rated, ${r.evidence.liked} liked${r.evidence.enough ? "" : " (not enough for picks)"}`);
+    const r = set[ex.name];
+    lines.push("", `== ${ex.name}: ${version === "baseline-1" ? baselineDescriptions[ex.name] : ex.description}`);
+    const survey = version === "baseline-1" ? "" : `, ${r.evidence.surveyPreferences} survey preference(s)${r.evidence.surveyOnly ? " (picks rest on the survey)" : ""}`;
+    lines.push(`   evidence: ${r.evidence.rated} rated, ${r.evidence.liked} liked${survey}${r.evidence.enough ? "" : " (not enough for picks)"}`);
     r.picks.forEach((p, i) => {
       const why = R.explain(p, r.prefs, catalog).positives.map((f) => f.label).join(", ");
-      console.log(`   ${String(i + 1).padStart(2)}. ${p.show.title.padEnd(36)} ${p.score.toFixed(3)}  ${why}`);
+      lines.push(`   ${String(i + 1).padStart(2)}. ${p.show.title.padEnd(36)} ${p.score.toFixed(3)}  ${why}`);
     });
     if (!r.evidence.enough) {
-      console.log(`   discovery list starts: ${r.discovery.slice(0, 5).map((d) => d.show.title).join(", ")}`);
+      lines.push(`   discovery list starts: ${r.discovery.slice(0, 5).map((d) => d.show.title).join(", ")}`);
     }
   }
+  return lines.join("\n") + "\n";
 }
 
-if (!process.argv.includes("--report")) runChecks();
-printReport();
+// Descriptions as they were when the baseline was saved.
+const baselineDescriptions = {
+  "warm-family": "Likes warm family sitcoms; dislikes crude and cynical shows.",
+  "cringe-satire": "Likes awkward, cynical single-camera comedy; dislikes wholesome family shows.",
+  "workplace-classics": "Likes 1970s-80s workplace ensembles; mixed on family shows.",
+  animation: "Likes adult animation; dislikes multi-camera romance sitcoms.",
+  sparse: "Only one rating so far: should get an honest 'not enough evidence' message.",
+};
+
+module.exports = { catalog, examples, buildProfile, results, baseline, shareWith, reportText };
+
+if (require.main === module) {
+  const useBaseline = process.argv.includes("--baseline");
+  if (!process.argv.includes("--report")) runChecks();
+  process.stdout.write(useBaseline ? reportText(baseline, "baseline-1") : reportText(results, R.SCORING_VERSION));
+}

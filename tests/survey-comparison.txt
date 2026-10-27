@@ -1,0 +1,64 @@
+Comparing survey-1 with baseline-1 (same profiles; baseline ignores survey answers)
+
+== warm-family
+   top 10: 9 kept from the baseline top 10
+   new:     Only Fools and Horses
+   dropped: Fresh Off the Boat
+   asked more format:multi-cam     picks with it: 7 -> 8
+   asked less format:single-cam    picks with it: 2 -> 1
+   asked more setting:home         picks with it: 8 -> 7
+   asked more themes:family        picks with it: 9 -> 9
+   asked more tone:warm            picks with it: 7 -> 7
+   asked more tone:heartfelt       picks with it: 4 -> 5
+   asked less humor:cringe         picks with it: 0 -> 0
+   asked less humor:dark           picks with it: 0 -> 0
+   asked less tone:edgy            picks with it: 0 -> 0
+   asked less content:mature       picks with it: 0 -> 0
+   asked less content:suggestive   picks with it: 0 -> 0
+   asked less content:crude        picks with it: 0 -> 0
+
+== cringe-satire
+   top 10: 9 kept from the baseline top 10
+   new:     Barry
+   dropped: What We Do in the Shadows
+   asked more format:single-cam    picks with it: 10 -> 10
+   asked less format:multi-cam     picks with it: 0 -> 0
+   asked more setting:workplace    picks with it: 7 -> 7
+   asked more themes:coworkers     picks with it: 7 -> 7
+   asked less tone:warm            picks with it: 3 -> 3
+   asked less tone:heartfelt       picks with it: 0 -> 0
+   asked more humor:cringe         picks with it: 5 -> 5
+   asked more humor:dark           picks with it: 2 -> 3
+   asked more tone:edgy            picks with it: 1 -> 2
+
+== workplace-classics
+   top 10: 9 kept from the baseline top 10
+   new:     Designing Women
+   dropped: Only Murders in the Building
+   asked more format:multi-cam     picks with it: 7 -> 8
+   asked less format:single-cam    picks with it: 3 -> 2
+   asked more setting:workplace    picks with it: 5 -> 6
+   asked more themes:coworkers     picks with it: 6 -> 6
+   asked more tone:warm            picks with it: 6 -> 6
+   asked more tone:heartfelt       picks with it: 0 -> 0
+   asked less content:mature       picks with it: 0 -> 0
+   asked less content:suggestive   picks with it: 2 -> 2
+   asked less content:crude        picks with it: 0 -> 0
+
+== animation
+   top 10: 10 kept from the baseline top 10
+   asked more medium:animated      picks with it: 2 -> 2
+   asked more humor:absurdist      picks with it: 7 -> 7
+   asked more humor:surreal        picks with it: 0 -> 0
+   asked more content:mature       picks with it: 1 -> 1
+   asked more content:suggestive   picks with it: 0 -> 0
+   asked more content:crude        picks with it: 1 -> 1
+
+== sparse
+   baseline: no picks (not enough rating evidence)
+   top 10: 0 kept from the baseline top 0
+   new:     Black Books, How I Met Your Mother, Three's Company, Two and a Half Men, Living Single, Will & Grace, Mad About You, Kate & Allie, Night Court, The IT Crowd
+   asked less medium:animated      picks with it: 0 -> 0
+   asked more format:multi-cam     picks with it: 0 -> 10
+   asked less format:single-cam    picks with it: 0 -> 0
+   asked less humor:cringe         picks with it: 0 -> 0

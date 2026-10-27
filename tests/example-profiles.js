@@ -1,7 +1,8 @@
 // Fixed example profiles for checking recommendation behavior.
 // These are made-up viewers, not real personal data. Every show that is not
 // rated or listed as seen is treated as Not seen, so the whole eligible pool
-// is available to rank.
+// is available to rank. Survey answers were added in the survey stage; the
+// baseline-1 method ignores them.
 
 module.exports = [
   {
@@ -18,6 +19,7 @@ module.exports = [
       "married-with-children-1987": "meh",
     },
     seen: ["saved-by-the-bell-1989"],
+    survey: { animation: "neutral", camera: "multi", setting: "home", warmth: "more", cringe: "less", dark: "less", absurd: "neutral", adult: "less" },
   },
   {
     name: "cringe-satire",
@@ -33,6 +35,7 @@ module.exports = [
       "home-improvement-1991": "meh",
     },
     seen: [],
+    survey: { animation: "neutral", camera: "single", setting: "work", warmth: "less", cringe: "more", dark: "more", absurd: "neutral", adult: "neutral" },
   },
   {
     name: "workplace-classics",
@@ -47,6 +50,7 @@ module.exports = [
       "growing-pains-1985": "no",
     },
     seen: ["m-a-s-h-1972", "the-bob-newhart-show-1972"],
+    survey: { animation: "neutral", camera: "multi", setting: "work", warmth: "more", cringe: "neutral", dark: "neutral", absurd: "neutral", adult: "less" },
   },
   {
     name: "animation",
@@ -60,11 +64,13 @@ module.exports = [
       "the-big-bang-theory-2007": "no",
     },
     seen: [],
+    survey: { animation: "more", camera: "neutral", setting: "neutral", warmth: "neutral", cringe: "neutral", dark: "neutral", absurd: "more", adult: "more" },
   },
   {
     name: "sparse",
-    description: "Only one rating so far: should get an honest 'not enough evidence' message.",
+    description: "Only one rating so far: not enough evidence from ratings alone; survey answers can stand in, labeled as such.",
     ratings: { "seinfeld-1989": "yes" },
     seen: ["friends-1994", "frasier-1993"],
+    survey: { animation: "less", camera: "multi", setting: "neutral", warmth: "neutral", cringe: "less", dark: "neutral", absurd: "neutral", adult: "neutral" },
   },
 ];

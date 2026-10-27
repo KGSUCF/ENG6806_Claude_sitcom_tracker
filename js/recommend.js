@@ -6,10 +6,14 @@
 //    plus its kind and medium.
 // 2. Your ratings teach a "lean" for each feature: shows you liked push the
 //    feature up, shows you didn't like push it down, Meh nudges it down a little.
+//    Taste-survey answers add a smaller nudge to the features they name.
 // 3. A candidate's score is the average lean of its features.
 // Awards and reputation decide which shows are eligible, never the score.
 
-const SCORING_VERSION = "baseline-1";
+const SCORING_VERSION = "survey-1";
+
+// The survey questions come from survey.js (a <script> in the browser, require in Node).
+const SURVEY_DEFS = typeof SURVEY_QUESTIONS !== "undefined" ? { surveyOption, countSurveyPreferences } : require("./survey.js");
 
 // How much one rating moves the lean of each feature of that show.
 const RATING_WEIGHTS = { yes: 1, meh: -0.25, no: -1 };
@@ -18,9 +22,14 @@ const RATING_WEIGHTS = { yes: 1, meh: -0.25, no: -1 };
 // so a feature backed by one show counts for less than one backed by many.
 const SHRINKAGE = 2;
 
+// How far one survey answer moves each feature it names. One Yes rating moves a
+// feature by 1 / (1 + 2) = 0.33, so a single rated show outweighs a survey answer.
+const SURVEY_STRENGTH = 0.2;
+
 // Minimum evidence before personal recommendations are shown.
 const MIN_RATED = 3;
 const MIN_LIKED = 1;
+const MIN_SURVEY_PREFERENCES = 3; // non-neutral answers that can stand in for ratings
 const FEW_RATINGS = 10; // below this, results are labeled as rough
 
 const PICK_LIMIT = 10;
@@ -68,9 +77,11 @@ function describeFeature(feature, catalog) {
   };
 }
 
-// Learn a lean for every feature that appears in at least one rated show.
-// Returns a Map: feature -> { lean, examples: [{ id, rating }] }
-function learnPreferences(profile, catalog) {
+// Learn a lean for every feature that appears in a rated show or a survey answer.
+// Returns a Map: feature -> { lean, ratingLean, surveyLean, examples: [{ id, rating }],
+//                             answers: [{ questionId, label, direction }] }
+// With useSurvey false, survey answers are ignored (the baseline-1 method).
+function learnPreferences(profile, catalog, useSurvey = true) {
   const totals = new Map();
   for (const [id, entry] of Object.entries(profile.shows)) {
     if (!entry.rating) continue;
@@ -85,7 +96,21 @@ function learnPreferences(profile, catalog) {
   }
   const prefs = new Map();
   for (const [feature, { sum, examples }] of totals) {
-    prefs.set(feature, { lean: sum / (examples.length + SHRINKAGE), examples });
+    const ratingLean = sum / (examples.length + SHRINKAGE);
+    prefs.set(feature, { lean: ratingLean, ratingLean, surveyLean: 0, examples, answers: [] });
+  }
+  if (!useSurvey) return prefs;
+
+  for (const [questionId, value] of Object.entries(profile.survey ?? {})) {
+    const option = SURVEY_DEFS.surveyOption(questionId, value);
+    if (!option) continue;
+    for (const [feature, direction] of Object.entries(option.effects)) {
+      if (!prefs.has(feature)) prefs.set(feature, { lean: 0, ratingLean: 0, surveyLean: 0, examples: [], answers: [] });
+      const pref = prefs.get(feature);
+      pref.surveyLean += direction * SURVEY_STRENGTH;
+      pref.lean = pref.ratingLean + pref.surveyLean;
+      pref.answers.push({ questionId, label: option.label, direction });
+    }
   }
   return prefs;
 }
@@ -103,23 +128,32 @@ function compareScored(a, b) {
   return b.score - a.score || a.show.title.localeCompare(b.show.title, "en") || a.show.id.localeCompare(b.show.id);
 }
 
-function summarizeEvidence(profile) {
+function summarizeEvidence(profile, useSurvey = true) {
   let rated = 0;
   let liked = 0;
   for (const entry of Object.values(profile.shows)) {
     if (entry.rating) rated++;
     if (entry.rating === "yes") liked++;
   }
-  const enough = rated >= MIN_RATED && liked >= MIN_LIKED;
-  return { rated, liked, enough, rough: enough && rated < FEW_RATINGS };
+  const surveyPreferences = useSurvey ? SURVEY_DEFS.countSurveyPreferences(profile.survey ?? {}) : 0;
+  const fromRatings = rated >= MIN_RATED && liked >= MIN_LIKED;
+  const fromSurvey = surveyPreferences >= MIN_SURVEY_PREFERENCES;
+  const enough = fromRatings || fromSurvey;
+  return {
+    rated, liked, surveyPreferences, enough,
+    surveyOnly: enough && !fromRatings, // picks rest mainly on broad survey answers
+    rough: enough && rated < FEW_RATINGS,
+  };
 }
 
 // Build recommendations.
 // options.includeUnknown: also consider shows whose status is Unknown.
 // options.includeReviewCandidates: widen the pool beyond the catalog's default.
+// options.useSurvey: false reproduces the baseline-1 results (ratings only).
 function recommend(catalog, profile, options = {}) {
-  const evidence = summarizeEvidence(profile);
-  const prefs = learnPreferences(profile, catalog);
+  const useSurvey = options.useSurvey ?? true;
+  const evidence = summarizeEvidence(profile, useSurvey);
+  const prefs = learnPreferences(profile, catalog, useSurvey);
 
   const poolIds = new Set(catalog.views.documented_selection.show_ids);
   if (options.includeReviewCandidates) {
@@ -155,7 +189,7 @@ function recommend(catalog, profile, options = {}) {
   const discovery = (evidence.enough ? unknownShows : unknownShows.sort((a, b) => catalog.shows.indexOf(a.show) - catalog.shows.indexOf(b.show)))
     .slice(0, DISCOVERY_LIMIT);
 
-  return { version: SCORING_VERSION, evidence, prefs, counts, picks, discovery, eligibleNotSeen: scored.filter((s) => s.status === "not_seen" && s.score > 0).length };
+  return { version: useSurvey ? SCORING_VERSION : "baseline-1", evidence, prefs, counts, picks, discovery, eligibleNotSeen: scored.filter((s) => s.status === "not_seen" && s.score > 0).length };
 }
 
 // Reasons that come straight from the score: the features adding the most,
@@ -166,6 +200,7 @@ function explain(scoredShow, prefs, catalog) {
     ...describeFeature(c.feature, catalog),
     lean: c.lean,
     examples: prefs.get(c.feature).examples,
+    answers: prefs.get(c.feature).answers,
   });
   const positives = withEvidence.filter((c) => c.lean > 0).sort((a, b) => b.lean - a.lean || a.feature.localeCompare(b.feature)).slice(0, 3).map(describe);
   const negatives = withEvidence.filter((c) => c.lean < 0).sort((a, b) => a.lean - b.lean || a.feature.localeCompare(b.feature)).slice(0, 2).map(describe);
@@ -182,7 +217,7 @@ function eligibilityReason(show) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    SCORING_VERSION, RATING_WEIGHTS, SHRINKAGE, MIN_RATED, MIN_LIKED, PICK_LIMIT, DISCOVERY_LIMIT,
+    SCORING_VERSION, RATING_WEIGHTS, SHRINKAGE, SURVEY_STRENGTH, MIN_RATED, MIN_LIKED, MIN_SURVEY_PREFERENCES, PICK_LIMIT, DISCOVERY_LIMIT,
     showFeatures, describeFeature, learnPreferences, scoreShow, recommend, explain, eligibilityReason,
   };
 }

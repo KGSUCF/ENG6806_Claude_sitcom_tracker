@@ -30,6 +30,7 @@
     <nav class="mode-tabs" aria-label="View">
       <button type="button" class="mode-tab" data-mode="browse" aria-pressed="true">Browse &amp; rate</button>
       <button type="button" class="mode-tab" data-mode="history" aria-pressed="false">Quick history</button>
+      <button type="button" class="mode-tab" data-mode="survey" aria-pressed="false">Taste survey</button>
       <button type="button" class="mode-tab" data-mode="recommend" aria-pressed="false">Recommendations</button>
     </nav>
 
@@ -99,6 +100,34 @@
     </section>
     </div>
 
+    <section id="survey-view" aria-labelledby="survey-heading" hidden>
+      <div class="panel">
+        <h2 id="survey-heading">Taste survey (optional)</h2>
+        <p>
+          Eight quick questions about the kinds of comedy you enjoy. Skip any of them, and
+          come back to change your answers at any time. Answers are saved as you go.
+        </p>
+        <details class="survey-explainer">
+          <summary>How your answers affect recommendations</summary>
+          <ul>
+            <li>Each question is tied to a few catalog tags. "More" answers give those tags a small
+              boost; "less" answers give them a small penalty.</li>
+            <li>"No preference" and "It depends" answers do nothing, the same as skipping.</li>
+            <li>A survey answer counts for less than rating a single show. Your actual ratings always
+              have more say than these broad answers.</li>
+            <li>With at least three answers that express a preference, you can get picks before
+              rating many shows. Those picks are labeled as resting on the survey.</li>
+          </ul>
+        </details>
+        <p id="survey-progress" class="rec-pool" aria-live="polite"></p>
+      </div>
+      <form id="survey-form" class="survey-form"></form>
+      <div class="data-actions">
+        <button type="button" data-goto-mode="recommend">See recommendations</button>
+        <button type="button" id="survey-reset" class="button-secondary">Reset survey answers</button>
+      </div>
+    </section>
+
     <section id="recommend-view" aria-labelledby="rec-heading" hidden>
       <div class="panel">
         <h2 id="rec-heading">Recommendations</h2>
@@ -120,6 +149,7 @@
         </div>
         <button type="button" id="rec-refresh">Refresh recommendations</button>
         <p id="rec-pool" class="rec-pool"></p>
+        <p id="rec-survey" class="rec-pool"></p>
       </div>
 
       <div id="rec-evidence" class="rec-evidence" aria-live="polite"></div>
@@ -141,7 +171,7 @@
     <section class="panel" aria-labelledby="data-heading">
       <h2 id="data-heading">Your data</h2>
       <p>
-        Your viewing history and ratings are saved only in this browser. They are never added to
+        Your viewing history, ratings, and survey answers are saved only in this browser. They are never added to
         <code>catalog.json</code> or to the repository. Export a backup to keep a copy
         or move it to another browser.
       </p>
@@ -181,6 +211,7 @@
     </p>
   </footer>
 
+  <script src="js/survey.js"></script>
   <script src="js/profile.js"></script>
   <script src="js/recommend.js"></script>
   <script src="js/app.js"></script>

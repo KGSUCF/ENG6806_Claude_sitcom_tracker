@@ -54,7 +54,7 @@ test("a version 1 backup migrates: every rating becomes Seen + rating", () => {
     "taxi-1978": { status: "seen", rating: "meh" },
     "soap-1977": { status: "seen", rating: "no" },
   });
-  assert.equal(r.profile.version, 2);
+  assert.equal(r.profile.version, P.PROFILE_VERSION);
 });
 
 test("former IDs are translated with id_aliases", () => {
@@ -86,7 +86,8 @@ test("contradictory or unknown entries are skipped and reported, not guessed", (
   const r = P.validateProfileData(v2, catalog);
   assert.equal(r.ok, true);
   assert.deepEqual(Object.keys(r.profile.shows), ["soap-1977"]);
-  assert.equal(r.warnings.length, 2);
+  assert.ok(r.warnings.some((w) => w.includes("not in this catalog")));
+  assert.ok(r.warnings.some((w) => w.includes("contradictory")));
 });
 
 test("wrong format or version is rejected without a profile", () => {
@@ -116,6 +117,41 @@ test("counts separate seen, rated, and not seen", () => {
   P.setEntry(p, "taxi-1978", "seen");
   P.setEntry(p, "soap-1977", "not_seen");
   assert.deepEqual(P.countEntries(p), { seen: 2, not_seen: 1, rated: 1, yes: 1, meh: 0, no: 0 });
+});
+
+test("a version 3 backup round-trips survey answers", () => {
+  const p = P.emptyProfile();
+  P.setEntry(p, "cheers-1982", "seen", "yes");
+  p.survey = { animation: "more", camera: "neutral" };
+  const r = P.validateProfileData(JSON.parse(JSON.stringify(P.makeBackup(p, catalog))), catalog);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.profile.survey, { animation: "more", camera: "neutral" });
+  assert.deepEqual(r.profile.shows, p.shows);
+});
+
+test("version 1 and 2 backups import with an empty survey", () => {
+  const v1 = P.validateProfileData({ format: "sitcom-tracker-profile", version: 1, ratings: { "cheers-1982": "yes" } }, catalog);
+  const v2 = P.validateProfileData({ format: "sitcom-tracker-profile", version: 2, shows: { "taxi-1978": { status: "seen" } } }, catalog);
+  assert.deepEqual(v1.profile.survey, {});
+  assert.deepEqual(v2.profile.survey, {});
+  assert.equal(v2.profile.version, 3);
+});
+
+test("unknown survey questions or answers are skipped and reported", () => {
+  const r = P.validateProfileData({
+    format: "sitcom-tracker-profile", version: 3, shows: {},
+    survey: { animation: "more", camera: "sideways", "made-up": "more" },
+  }, catalog);
+  assert.deepEqual(r.profile.survey, { animation: "more" });
+  assert.ok(r.warnings.some((w) => w.includes("2 survey answer")));
+});
+
+test("merge combines survey answers, imported answers winning", () => {
+  const a = P.emptyProfile();
+  a.survey = { animation: "more", cringe: "less" };
+  const b = P.emptyProfile();
+  b.survey = { cringe: "more" };
+  assert.deepEqual(P.mergeProfiles(a, b).survey, { animation: "more", cringe: "more" });
 });
 
 console.log(`\n${passed} profile tests passed.`);
